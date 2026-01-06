@@ -9,7 +9,7 @@ type Comment struct {
 	UserName        string    `json:"user_name"`
 	UserAvatar      string    `json:"user_avatar"`
 	Content         string    `json:"content"`
-	Likes           int       `json:"likes"`
+	LikeCount       int       `json:"like_count"`
 	PublishTime     int64     `json:"publish_time"`
 	SubComments     []Comment `json:"sub_comments"`
 	SubCommentCount int       `json:"sub_comment_count"`

@@ -72,11 +72,11 @@ func (c *RednoteClient) GetNoteByID(noteID, xsecSource, xsecToken string) (*mode
 	c.logger.Info("[RednoteClient.GetNoteByID] Getting note detail: %s", noteID)
 
 	return &model.Note{
-		NoteID:     noteID,
-		Title:      "Test Note",
-		AuthorName: "Test Author",
-		Likes:      100,
-		Comments:   10,
+		NoteID:       noteID,
+		Title:        "Test Note",
+		AuthorName:   "Test Author",
+		LikeCount:    100,
+		CommentCount: 10,
 	}, nil
 }
 
@@ -85,11 +85,11 @@ func (c *RednoteClient) GetNoteByIDFromHTML(noteID, xsecSource, xsecToken string
 	c.logger.Info("[RednoteClient.GetNoteByIDFromHTML] Getting note detail from HTML: %s", noteID)
 
 	return &model.Note{
-		NoteID:     noteID,
-		Title:      "Test Note from HTML",
-		AuthorName: "Test Author",
-		Likes:      100,
-		Comments:   10,
+		NoteID:       noteID,
+		Title:        "Test Note from HTML",
+		AuthorName:   "Test Author",
+		LikeCount:    100,
+		CommentCount: 10,
 	}, nil
 }
 
@@ -99,20 +99,20 @@ func (c *RednoteClient) GetAllNotesByCreator(userID string, crawlInterval int, c
 
 	notes := []*model.Note{
 		{
-			NoteID:     "test_note_1",
-			Title:      "Test Note 1",
-			AuthorID:   userID,
-			AuthorName: "Test Author",
-			Likes:      100,
-			Comments:   10,
+			NoteID:       "test_note_1",
+			Title:        "Test Note 1",
+			AuthorID:     userID,
+			AuthorName:   "Test Author",
+			LikeCount:    100,
+			CommentCount: 10,
 		},
 		{
-			NoteID:     "test_note_2",
-			Title:      "Test Note 2",
-			AuthorID:   userID,
-			AuthorName: "Test Author",
-			Likes:      200,
-			Comments:   20,
+			NoteID:       "test_note_2",
+			Title:        "Test Note 2",
+			AuthorID:     userID,
+			AuthorName:   "Test Author",
+			LikeCount:    200,
+			CommentCount: 20,
 		},
 	}
 
@@ -126,7 +126,7 @@ func (c *RednoteClient) GetAllNotesByCreator(userID string, crawlInterval int, c
 }
 
 // GetNoteAllComments 获取帖子的所有评论
-func (c *RednoteClient) GetNoteAllComments(noteID, xsecToken string, crawlInterval int, callback func([]*model.Comment) error, maxCount int) error {
+func (c *RednoteClient) GetNoteAllComments(noteID, xsecToken string, crawlInterval int, maxCount int) ([]*model.Comment, error) {
 	c.logger.Info("[RednoteClient.GetNoteAllComments] Getting all comments for note: %s", noteID)
 
 	comments := []*model.Comment{
@@ -136,7 +136,7 @@ func (c *RednoteClient) GetNoteAllComments(noteID, xsecToken string, crawlInterv
 			UserID:      "test_user_1",
 			UserName:    "Test User 1",
 			Content:     "Test Comment 1",
-			Likes:       10,
+			LikeCount:   10,
 			PublishTime: time.Now().Unix(),
 		},
 		{
@@ -145,16 +145,12 @@ func (c *RednoteClient) GetNoteAllComments(noteID, xsecToken string, crawlInterv
 			UserID:      "test_user_2",
 			UserName:    "Test User 2",
 			Content:     "Test Comment 2",
-			Likes:       20,
+			LikeCount:   20,
 			PublishTime: time.Now().Unix(),
 		},
 	}
 
-	if callback != nil {
-		return callback(comments)
-	}
-
-	return nil
+	return comments, nil
 }
 
 // GetNoteMedia 获取帖子媒体

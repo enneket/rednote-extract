@@ -35,7 +35,7 @@ func NewRednoteCrawler(cfg *config.Config, store store.Store, logger tools.Logge
 }
 
 // Start 启动爬虫
-func (c *RednoteCrawler) Start() error {
+func (c *RednoteCrawler) Init() error {
 	c.logger.Info("[RednoteCrawler] Starting crawler")
 
 	c.browserMgr = tools.NewBrowserManager(c.config, c.logger)
@@ -52,7 +52,7 @@ func (c *RednoteCrawler) Start() error {
 	}
 	c.page = page
 
-	if _, err := c.page.Goto("https://www.xiaohongshu.com"); err != nil {
+	if _, err = c.page.Goto("https://www.xiaohongshu.com"); err != nil {
 		return fmt.Errorf("failed to navigate to xiaohongshu: %w", err)
 	}
 
@@ -73,14 +73,7 @@ func (c *RednoteCrawler) Start() error {
 		}
 	}
 
-	switch c.config.CrawlerType {
-	case "search":
-		return c.search()
-	case "detail":
-		return c.getSpecifiedNotes()
-	default:
-		return fmt.Errorf("unsupported crawler type: %s", c.config.CrawlerType)
-	}
+	return nil
 }
 
 // login 登录Rednote
@@ -116,75 +109,137 @@ func (c *RednoteCrawler) login() error {
 	return nil
 }
 
-// search 搜索帖子
-func (c *RednoteCrawler) search() error {
+// Search 搜索帖子
+func (c *RednoteCrawler) Search() ([]*model.Note, error) {
 	c.logger.Info("[RednoteCrawler] Begin search Rednote keywords")
 
-	for _, keyword := range c.config.Keywords {
-		c.logger.Info("[RednoteCrawler] Current search keyword: %s", keyword)
+	keyword := c.config.Keyword
+	c.logger.Info("[RednoteCrawler] Current search keyword: %s", keyword)
 
-		page := 1
-		searchID := tools.GetRandomString(16)
+	var allNotes []*model.Note
 
-		for (page-c.config.StartPage+1)*20 <= c.config.CrawlerMaxNotesCount {
-			if page < c.config.StartPage {
-				c.logger.Info("[RednoteCrawler] Skip page %d", page)
-				page++
-				continue
-			}
+	page := 1
+	searchID := tools.GetRandomString(16)
 
-			c.logger.Info("[RednoteCrawler] Searching keyword: %s, page: %d", keyword, page)
-
-			notesRes, err := c.client.GetNoteByKeyword(keyword, searchID, page, c.config.SortType)
-			if err != nil {
-				c.logger.Error("[RednoteCrawler] Failed to get search results: %v", err)
-				break
-			}
-
-			_ = notesRes
-
+	for (page-c.config.StartPage+1)*20 <= c.config.CrawlerMaxNotesCount {
+		if page < c.config.StartPage {
+			c.logger.Info("[RednoteCrawler] Skip page %d", page)
 			page++
-
-			time.Sleep(time.Duration(c.config.CrawlerMaxSleepSec) * time.Second)
-		}
-	}
-
-	return nil
-}
-
-// getSpecifiedNotes 获取指定帖子详情
-func (c *RednoteCrawler) getSpecifiedNotes() error {
-	c.logger.Info("[RednoteCrawler] Begin get specified notes")
-
-	for _, noteURL := range c.config.Keywords {
-		c.logger.Info("[RednoteCrawler] Processing note URL: %s", noteURL)
-
-		noteInfo := parseNoteInfoFromNoteURL(noteURL)
-		if noteInfo == nil {
-			c.logger.Error("[RednoteCrawler] Failed to parse note URL: %s", noteURL)
 			continue
 		}
 
-		note, err := c.getNoteDetail(noteInfo.NoteID, noteInfo.XsecSource, noteInfo.XsecToken)
+		c.logger.Info("[RednoteCrawler] Searching keyword: %s, page: %d", keyword, page)
+
+		notesRes, err := c.client.GetNoteByKeyword(keyword, searchID, page, c.config.SortType)
 		if err != nil {
-			c.logger.Error("[RednoteCrawler] Failed to get note detail: %v", err)
-			continue
+			c.logger.Error("[RednoteCrawler] Failed to get search results: %v", err)
+			break
 		}
 
-		if err := c.store.SaveNote(note); err != nil {
-			c.logger.Error("[RednoteCrawler] Failed to save note: %v", err)
-		}
-
-		if c.config.EnableGetComments {
-			if err := c.getNoteComments(note.NoteID, note.XsecToken); err != nil {
-				c.logger.Error("[RednoteCrawler] Failed to get comments: %v", err)
+		if items, ok := notesRes["items"].([]map[string]interface{}); ok {
+			for _, item := range items {
+				note := c.parseNoteFromSearchResult(item, keyword)
+				if note != nil {
+					allNotes = append(allNotes, note)
+				}
 			}
 		}
+
+		hasMore, _ := notesRes["has_more"].(bool)
+		if !hasMore {
+			break
+		}
+
+		page++
 
 		time.Sleep(time.Duration(c.config.CrawlerMaxSleepSec) * time.Second)
 	}
 
-	return nil
+	c.logger.Info("[RednoteCrawler] Search completed, found %d notes", len(allNotes))
+	return allNotes, nil
+}
+
+// parseNoteFromSearchResult 从搜索结果解析帖子
+func (c *RednoteCrawler) parseNoteFromSearchResult(item map[string]interface{}, keyword string) *model.Note {
+	noteID, _ := item["note_id"].(string)
+	if noteID == "" {
+		noteID, _ = item["noteId"].(string)
+	}
+	if noteID == "" {
+		return nil
+	}
+
+	title, _ := item["title"].(string)
+	if title == "" {
+		title = "Untitled"
+	}
+
+	authorName := ""
+	if author, ok := item["user"].(map[string]interface{}); ok {
+		authorName, _ = author["nickname"].(string)
+	}
+
+	likes := 0
+	if likeInfo, ok := item["interact_info"].(map[string]interface{}); ok {
+		if likeCount, ok := likeInfo["liked_count"].(float64); ok {
+			likes = int(likeCount)
+		}
+	}
+
+	notes := &model.Note{
+		NoteID:     noteID,
+		Title:      title,
+		AuthorName: authorName,
+		LikeCount:  likes,
+		SourceType: "search",
+		Keyword:    keyword,
+	}
+
+	return notes
+}
+
+// GetSpecifiedNotes 获取指定帖子详情
+func (c *RednoteCrawler) GetSpecifiedNotes() (*model.Note, error) {
+	c.logger.Info("[RednoteCrawler] Begin get specified notes")
+
+	noteURL := c.config.Keyword
+	c.logger.Info("[RednoteCrawler] Processing note URL: %s", noteURL)
+
+	noteInfo := parseNoteInfoFromNoteURL(noteURL)
+	if noteInfo == nil {
+		c.logger.Error("[RednoteCrawler] Failed to parse note URL: %s", noteURL)
+		return nil, nil
+	}
+
+	note, err := c.getNoteDetail(noteInfo.NoteID, noteInfo.XsecSource, noteInfo.XsecToken)
+	if err != nil {
+		c.logger.Error("[RednoteCrawler] Failed to get note detail: %v", err)
+		return nil, err
+	}
+
+	note.SourceType = "specified"
+	note.Keyword = noteURL
+
+	if err := c.store.SaveNote(note); err != nil {
+		c.logger.Error("[RednoteCrawler] Failed to save note: %v", err)
+	}
+
+	if c.config.EnableGetComments {
+		if comments, err := c.GetNoteComments(note.NoteID, note.XsecToken); err != nil {
+			c.logger.Error("[RednoteCrawler] Failed to get comments: %v", err)
+		} else {
+			for _, comment := range comments {
+				if err := c.store.SaveComment(comment); err != nil {
+					c.logger.Error("[RednoteCrawler] Failed to save comment: %v", err)
+				}
+			}
+			note.Comments = comments
+		}
+	}
+
+	time.Sleep(time.Duration(c.config.CrawlerMaxSleepSec) * time.Second)
+
+	return note, nil
 }
 
 // getNoteDetail 获取帖子详情
@@ -208,58 +263,26 @@ func (c *RednoteCrawler) getNoteDetail(noteID, xsecSource, xsecToken string) (*m
 	return note, nil
 }
 
-// processCreatorNotes 处理创作者帖子
-func (c *RednoteCrawler) processCreatorNotes(notes []*model.Note) error {
-	for _, note := range notes {
-		if err := c.store.SaveNote(note); err != nil {
-			c.logger.Error("[RednoteCrawler] Failed to save creator note: %v", err)
-		}
-	}
-	return nil
-}
-
-// getNoteComments 获取帖子评论
-func (c *RednoteCrawler) getNoteComments(noteID, xsecToken string) error {
+// GetNoteComments 获取帖子评论
+func (c *RednoteCrawler) GetNoteComments(noteID, xsecToken string) ([]*model.Comment, error) {
 	c.logger.Info("[RednoteCrawler] Getting comments for note: %s", noteID)
 
-	return c.client.GetNoteAllComments(
+	comments, err := c.client.GetNoteAllComments(
 		noteID,
 		xsecToken,
 		c.config.CrawlerMaxSleepSec,
-		c.processComments,
 		c.config.CrawlerMaxCommentsCountSingleNotes,
 	)
-}
-
-// processComments 处理评论
-func (c *RednoteCrawler) processComments(comments []*model.Comment) error {
+	if err != nil {
+		return nil, err
+	}
 	for _, comment := range comments {
 		if err := c.store.SaveComment(comment); err != nil {
 			c.logger.Error("[RednoteCrawler] Failed to save comment: %v", err)
 		}
 	}
-	return nil
-}
 
-// batchGetNoteComments 批量获取帖子评论
-func (c *RednoteCrawler) batchGetNoteComments(notes []*model.Note) {
-	semaphore := make(chan struct{}, c.config.MaxConcurrencyNum)
-
-	for _, note := range notes {
-		c.wg.Add(1)
-		go func(note *model.Note) {
-			defer c.wg.Done()
-
-			semaphore <- struct{}{}
-			defer func() { <-semaphore }()
-
-			if err := c.getNoteComments(note.NoteID, note.XsecToken); err != nil {
-				c.logger.Error("[RednoteCrawler] Failed to get comments for note %s: %v", note.NoteID, err)
-			}
-		}(note)
-	}
-
-	c.wg.Wait()
+	return comments, nil
 }
 
 // Close 关闭爬虫
@@ -281,33 +304,10 @@ func (c *RednoteCrawler) Close() error {
 	return nil
 }
 
-// NoteURLInfo 帖子URL信息
-type NoteURLInfo struct {
-	NoteID     string
-	XsecToken  string
-	XsecSource string
-}
-
-// CreatorURLInfo 创作者URL信息
-type CreatorURLInfo struct {
-	UserID     string
-	XsecToken  string
-	XsecSource string
-}
-
 // parseNoteInfoFromNoteURL 解析帖子URL
-func parseNoteInfoFromNoteURL(url string) *NoteURLInfo {
-	return &NoteURLInfo{
+func parseNoteInfoFromNoteURL(url string) *model.NoteURLInfo {
+	return &model.NoteURLInfo{
 		NoteID:     "test_note_id",
-		XsecToken:  "test_token",
-		XsecSource: "test_source",
-	}
-}
-
-// parseCreatorInfoFromURL 解析创作者URL
-func parseCreatorInfoFromURL(url string) *CreatorURLInfo {
-	return &CreatorURLInfo{
-		UserID:     "test_user_id",
 		XsecToken:  "test_token",
 		XsecSource: "test_source",
 	}

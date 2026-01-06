@@ -6,10 +6,8 @@ import (
 
 // Config 应用配置结构体，定义了爬虫的所有配置项
 type Config struct {
-	// Keywords 搜索关键词列表，用于爬取指定关键词的内容
-	Keywords []string `mapstructure:"KEYWORDS"`
-	// LoginType 登录方式，支持 "qrcode"（二维码登录）、"cookie"（Cookie登录）
-	LoginType string `mapstructure:"LOGIN_TYPE"`
+	// Keyword 搜索关键词，用于爬取指定关键词的内容
+	Keyword string `mapstructure:"KEYWORD"`
 	// Cookies 登录Cookie字符串，当LoginType为cookie时使用
 	Cookies string `mapstructure:"COOKIES"`
 	// CrawlerType 爬虫类型，支持 "search"（搜索爬取）、"creator"（指定创作者）、"specified"（指定链接）
@@ -51,8 +49,6 @@ type Config struct {
 // DefaultConfig 返回默认配置
 func DefaultConfig() *Config {
 	return &Config{
-		Keywords:                           []string{"编程副业", "编程兼职"},
-		LoginType:                          "qrcode",
 		Cookies:                            "",
 		CrawlerType:                        "search",
 		Headless:                           false,
