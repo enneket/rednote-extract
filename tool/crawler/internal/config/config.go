@@ -34,7 +34,7 @@ type Config struct {
 	EnableGetSubComments bool `mapstructure:"ENABLE_GET_SUB_COMMENTS"`
 	// CrawlerMaxSleepSec 爬虫最大休眠时间（秒），用于控制请求频率
 	CrawlerMaxSleepSec int `mapstructure:"CRAWLER_MAX_SLEEP_SEC"`
-	// SortType 排序方式，如 "time"（时间排序）、"popular"（热度排序）
+	// SortType 排序方式
 	SortType string `mapstructure:"SORT_TYPE"`
 }
 

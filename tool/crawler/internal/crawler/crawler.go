@@ -1,7 +1,6 @@
 package xhs
 
 import (
-	"encoding/json"
 	"fmt"
 	"sync"
 	"time"
@@ -52,59 +51,7 @@ func (c *RednoteCrawler) Init() error {
 	}
 	c.page = page
 
-	if _, err = c.page.Goto("https://www.xiaohongshu.com"); err != nil {
-		return fmt.Errorf("failed to navigate to xiaohongshu: %w", err)
-	}
-
-	cookies, err := c.browserMgr.GetCookies(".xiaohongshu.com")
-	if err != nil {
-		c.logger.Error("[RednoteCrawler] Failed to get cookies: %v", err)
-	}
-	cookieJSON, err := json.Marshal(cookies)
-	if err != nil {
-		c.logger.Error("[RednoteCrawler] Failed to marshal cookies: %v", err)
-	}
-
-	c.client = NewRednoteClient(c.config, page, string(cookieJSON), c.logger)
-
-	if !c.client.Pong() {
-		if err := c.login(); err != nil {
-			return fmt.Errorf("failed to login: %w", err)
-		}
-	}
-
-	return nil
-}
-
-// login 登录Rednote
-func (c *RednoteCrawler) login() error {
-	c.logger.Info("[RednoteCrawler] Login required")
-
-	ctx := c.page.Context()
-
-	cookies, err := c.browserMgr.GetCookies(".xiaohongshu.com")
-	if err != nil {
-		return fmt.Errorf("failed to get cookies: %w", err)
-	}
-	cookieJSON, err := json.Marshal(cookies)
-	if err != nil {
-		return fmt.Errorf("failed to marshal cookies: %w", err)
-	}
-
-	loginObj := NewRednoteLogin(string(cookieJSON), ctx, c.logger)
-	if err := loginObj.Begin(); err != nil {
-		return fmt.Errorf("failed to login: %w", err)
-	}
-
-	newCookies, err := c.browserMgr.GetCookies(".xiaohongshu.com")
-	if err != nil {
-		return fmt.Errorf("failed to get cookies after login: %w", err)
-	}
-	newCookieJSON, err := json.Marshal(newCookies)
-	if err != nil {
-		return fmt.Errorf("failed to marshal new cookies: %w", err)
-	}
-	c.client.UpdateCookies(string(newCookieJSON))
+	c.client = NewRednoteClient(c.config, page, c.config.Cookies, c.logger)
 
 	return nil
 }

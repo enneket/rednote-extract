@@ -48,6 +48,21 @@ func NewRednoteClient(cfg *config.Config, page playwright.Page, cookies string, 
 
 // Pong 测试客户端连接
 func (c *RednoteClient) Pong() bool {
+	c.logger.Info("[RednoteClient.Pong] Begin to pong Rednote...")
+
+	searchID := tools.GetRandomString(16)
+	result, err := c.GetNoteByKeyword("Rednote", searchID, 1, "")
+	if err != nil {
+		c.logger.Error("[RednoteClient.Pong] Pong failed: %v, need to login again", err)
+		return false
+	}
+
+	if items, ok := result["items"].([]map[string]interface{}); ok && len(items) > 0 {
+		c.logger.Info("[RednoteClient.Pong] Pong successful")
+		return true
+	}
+
+	c.logger.Info("[RednoteClient.Pong] Pong successful, no items found")
 	return true
 }
 
