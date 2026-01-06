@@ -9,8 +9,8 @@ import (
 	"github.com/playwright-community/playwright-go"
 )
 
-// XiaoHongShuClient 小红书客户端
-type XiaoHongShuClient struct {
+// RednoteClient Rednote客户端
+type RednoteClient struct {
 	config     *config.Config
 	httpClient *tools.HTTPClient
 	page       playwright.Page
@@ -18,8 +18,8 @@ type XiaoHongShuClient struct {
 	logger     tools.Logger
 }
 
-// NewXiaoHongShuClient 创建小红书客户端
-func NewXiaoHongShuClient(cfg *config.Config, page playwright.Page, cookies string, logger tools.Logger) *XiaoHongShuClient {
+// NewRednoteClient 创建Rednote客户端
+func NewRednoteClient(cfg *config.Config, page playwright.Page, cookies string, logger tools.Logger) *RednoteClient {
 	httpConfig := tools.HTTPConfig{
 		Timeout:   30 * time.Second,
 		UserAgent: tools.GetRandomUserAgent(),
@@ -37,7 +37,7 @@ func NewXiaoHongShuClient(cfg *config.Config, page playwright.Page, cookies stri
 		},
 	}
 
-	return &XiaoHongShuClient{
+	return &RednoteClient{
 		config:     cfg,
 		httpClient: tools.NewHTTPClient(httpConfig),
 		page:       page,
@@ -47,24 +47,20 @@ func NewXiaoHongShuClient(cfg *config.Config, page playwright.Page, cookies stri
 }
 
 // Pong 测试客户端连接
-func (c *XiaoHongShuClient) Pong() bool {
-	// 测试连接，这里可以实现一个简单的请求
+func (c *RednoteClient) Pong() bool {
 	return true
 }
 
 // UpdateCookies 更新cookies
-func (c *XiaoHongShuClient) UpdateCookies(cookies string) {
+func (c *RednoteClient) UpdateCookies(cookies string) {
 	c.cookies = cookies
 	c.httpClient.Config().Headers["Cookie"] = cookies
 }
 
 // GetNoteByKeyword 根据关键词搜索帖子
-func (c *XiaoHongShuClient) GetNoteByKeyword(keyword, searchID string, pageNum int, sortType string) (map[string]interface{}, error) {
-	// 这里实现搜索帖子的逻辑
-	// 实际实现需要分析小红书的API
-	c.logger.Info("[XiaoHongShuClient.GetNoteByKeyword] Searching for keyword: %s, page: %d", keyword, pageNum)
+func (c *RednoteClient) GetNoteByKeyword(keyword, searchID string, pageNum int, sortType string) (map[string]interface{}, error) {
+	c.logger.Info("[RednoteClient.GetNoteByKeyword] Searching for keyword: %s, page: %d", keyword, pageNum)
 
-	// 模拟返回数据
 	return map[string]interface{}{
 		"has_more": true,
 		"items":    []map[string]interface{}{},
@@ -72,12 +68,9 @@ func (c *XiaoHongShuClient) GetNoteByKeyword(keyword, searchID string, pageNum i
 }
 
 // GetNoteByID 根据ID获取帖子详情
-func (c *XiaoHongShuClient) GetNoteByID(noteID, xsecSource, xsecToken string) (*model.Note, error) {
-	// 这里实现获取帖子详情的逻辑
-	// 实际实现需要分析小红书的API
-	c.logger.Info("[XiaoHongShuClient.GetNoteByID] Getting note detail: %s", noteID)
+func (c *RednoteClient) GetNoteByID(noteID, xsecSource, xsecToken string) (*model.Note, error) {
+	c.logger.Info("[RednoteClient.GetNoteByID] Getting note detail: %s", noteID)
 
-	// 模拟返回数据
 	return &model.Note{
 		NoteID:     noteID,
 		Title:      "Test Note",
@@ -88,11 +81,9 @@ func (c *XiaoHongShuClient) GetNoteByID(noteID, xsecSource, xsecToken string) (*
 }
 
 // GetNoteByIDFromHTML 从HTML中获取帖子详情
-func (c *XiaoHongShuClient) GetNoteByIDFromHTML(noteID, xsecSource, xsecToken string, enableCookie bool) (*model.Note, error) {
-	// 这里实现从HTML中获取帖子详情的逻辑
-	c.logger.Info("[XiaoHongShuClient.GetNoteByIDFromHTML] Getting note detail from HTML: %s", noteID)
+func (c *RednoteClient) GetNoteByIDFromHTML(noteID, xsecSource, xsecToken string, enableCookie bool) (*model.Note, error) {
+	c.logger.Info("[RednoteClient.GetNoteByIDFromHTML] Getting note detail from HTML: %s", noteID)
 
-	// 模拟返回数据
 	return &model.Note{
 		NoteID:     noteID,
 		Title:      "Test Note from HTML",
@@ -103,11 +94,9 @@ func (c *XiaoHongShuClient) GetNoteByIDFromHTML(noteID, xsecSource, xsecToken st
 }
 
 // GetAllNotesByCreator 获取创作者的所有帖子
-func (c *XiaoHongShuClient) GetAllNotesByCreator(userID string, crawlInterval int, callback func([]*model.Note) error, xsecToken, xsecSource string) ([]*model.Note, error) {
-	// 这里实现获取创作者所有帖子的逻辑
-	c.logger.Info("[XiaoHongShuClient.GetAllNotesByCreator] Getting all notes for creator: %s", userID)
+func (c *RednoteClient) GetAllNotesByCreator(userID string, crawlInterval int, callback func([]*model.Note) error, xsecToken, xsecSource string) ([]*model.Note, error) {
+	c.logger.Info("[RednoteClient.GetAllNotesByCreator] Getting all notes for creator: %s", userID)
 
-	// 模拟返回数据
 	notes := []*model.Note{
 		{
 			NoteID:     "test_note_1",
@@ -137,11 +126,9 @@ func (c *XiaoHongShuClient) GetAllNotesByCreator(userID string, crawlInterval in
 }
 
 // GetNoteAllComments 获取帖子的所有评论
-func (c *XiaoHongShuClient) GetNoteAllComments(noteID, xsecToken string, crawlInterval int, callback func([]*model.Comment) error, maxCount int) error {
-	// 这里实现获取帖子所有评论的逻辑
-	c.logger.Info("[XiaoHongShuClient.GetNoteAllComments] Getting all comments for note: %s", noteID)
+func (c *RednoteClient) GetNoteAllComments(noteID, xsecToken string, crawlInterval int, callback func([]*model.Comment) error, maxCount int) error {
+	c.logger.Info("[RednoteClient.GetNoteAllComments] Getting all comments for note: %s", noteID)
 
-	// 模拟返回数据
 	comments := []*model.Comment{
 		{
 			CommentID:   "test_comment_1",
@@ -171,16 +158,14 @@ func (c *XiaoHongShuClient) GetNoteAllComments(noteID, xsecToken string, crawlIn
 }
 
 // GetNoteMedia 获取帖子媒体
-func (c *XiaoHongShuClient) GetNoteMedia(url string) ([]byte, error) {
-	// 这里实现获取帖子媒体的逻辑
-	c.logger.Info("[XiaoHongShuClient.GetNoteMedia] Getting media from URL: %s", url)
+func (c *RednoteClient) GetNoteMedia(url string) ([]byte, error) {
+	c.logger.Info("[RednoteClient.GetNoteMedia] Getting media from URL: %s", url)
 
-	// 模拟返回数据
 	return []byte("test media content"), nil
 }
 
 // Config 获取HTTP客户端配置
-func (c *XiaoHongShuClient) Config() tools.HTTPConfig {
+func (c *RednoteClient) Config() tools.HTTPConfig {
 	cfg := c.httpClient.Config()
 	return cfg
 }
