@@ -34,28 +34,6 @@ func GetRandomString(length int) string {
 	return base64.URLEncoding.EncodeToString(b)[:length]
 }
 
-// FormatProxyInfo 格式化代理信息
-func FormatProxyInfo(ip, port, username, password string) (string, map[string]string) {
-	var proxyURL string
-	var playwrightProxy map[string]string
-
-	if username != "" && password != "" {
-		proxyURL = fmt.Sprintf("http://%s:%s@%s:%s", username, password, ip, port)
-		playwrightProxy = map[string]string{
-			"server":   fmt.Sprintf("http://%s:%s", ip, port),
-			"username": username,
-			"password": password,
-		}
-	} else {
-		proxyURL = fmt.Sprintf("http://%s:%s", ip, port)
-		playwrightProxy = map[string]string{
-			"server": proxyURL,
-		}
-	}
-
-	return proxyURL, playwrightProxy
-}
-
 // SleepRandom 随机休眠指定时间范围内的秒数
 func SleepRandom(min, max int) {
 	if min >= max {

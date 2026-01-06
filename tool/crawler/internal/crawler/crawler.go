@@ -2,6 +2,8 @@ package xhs
 
 import (
 	"fmt"
+	"net/url"
+	"strings"
 	"sync"
 	"time"
 
@@ -263,10 +265,35 @@ func (c *RednoteCrawler) Close() error {
 }
 
 // parseNoteInfoFromNoteURL 解析帖子URL
-func parseNoteInfoFromNoteURL(url string) *model.NoteURLInfo {
+func parseNoteInfoFromNoteURL(urlStr string) *model.NoteURLInfo {
+	// Parse URL to extract path and query
+	parsedURL, err := url.Parse(urlStr)
+	if err != nil {
+		return &model.NoteURLInfo{}
+	}
+
+	// Extract note ID from path
+	noteID := parsedURL.Path
+	// Get the last segment of the path
+	if idx := strings.LastIndex(noteID, "/"); idx != -1 {
+		noteID = noteID[idx+1:]
+	}
+
+	// Parse query parameters
+	params := make(map[string]string)
+	for key, values := range parsedURL.Query() {
+		if len(values) > 0 {
+			params[key] = values[0]
+		}
+	}
+
+	// Get xsec_token and xsec_source from params
+	xsecToken := params["xsec_token"]
+	xsecSource := params["xsec_source"]
+
 	return &model.NoteURLInfo{
-		NoteID:     "test_note_id",
-		XsecToken:  "test_token",
-		XsecSource: "test_source",
+		NoteID:     noteID,
+		XsecToken:  xsecToken,
+		XsecSource: xsecSource,
 	}
 }
