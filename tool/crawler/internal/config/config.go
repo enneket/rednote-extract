@@ -1,17 +1,11 @@
 package config
 
-import (
-	"strings"
-)
-
 // Config 应用配置结构体，定义了爬虫的所有配置项
 type Config struct {
 	// Keyword 搜索关键词，用于爬取指定关键词的内容
 	Keyword string `mapstructure:"KEYWORD"`
 	// Cookies 登录Cookie字符串，当LoginType为cookie时使用
 	Cookies string `mapstructure:"COOKIES"`
-	// CrawlerType 爬虫类型，支持 "search"（搜索爬取）、"creator"（指定创作者）、"specified"（指定链接）
-	CrawlerType string `mapstructure:"CRAWLER_TYPE"`
 	// Headless 浏览器是否以无头模式运行
 	Headless bool `mapstructure:"HEADLESS"`
 	// SaveLoginState 是否保存登录状态到本地
@@ -32,8 +26,6 @@ type Config struct {
 	CrawlerMaxNotesCount int `mapstructure:"CRAWLER_MAX_NOTES_COUNT"`
 	// MaxConcurrencyNum 最大并发数
 	MaxConcurrencyNum int `mapstructure:"MAX_CONCURRENCY_NUM"`
-	// EnableGetMedias 是否爬取笔记中的媒体资源（图片、视频）
-	EnableGetMedias bool `mapstructure:"ENABLE_GET_MEIDAS"`
 	// EnableGetComments 是否爬取笔记的评论
 	EnableGetComments bool `mapstructure:"ENABLE_GET_COMMENTS"`
 	// CrawlerMaxCommentsCountSingleNotes 单条笔记的最大评论爬取数量
@@ -50,7 +42,6 @@ type Config struct {
 func DefaultConfig() *Config {
 	return &Config{
 		Cookies:                            "",
-		CrawlerType:                        "search",
 		Headless:                           false,
 		SaveLoginState:                     true,
 		CustomBrowserPath:                  "",
@@ -59,26 +50,12 @@ func DefaultConfig() *Config {
 		SaveDataOption:                     "json",
 		UserDataDir:                        "%s_user_data_dir",
 		StartPage:                          1,
-		CrawlerMaxNotesCount:               15,
+		CrawlerMaxNotesCount:               50,
 		MaxConcurrencyNum:                  1,
-		EnableGetMedias:                    false,
 		EnableGetComments:                  true,
-		CrawlerMaxCommentsCountSingleNotes: 10,
-		EnableGetSubComments:               false,
+		CrawlerMaxCommentsCountSingleNotes: 50,
+		EnableGetSubComments:               true,
 		CrawlerMaxSleepSec:                 2,
-		SortType:                           "",
+		SortType:                           "popularity_descending",
 	}
-}
-
-// ParseKeywords 从字符串解析关键词
-func ParseKeywords(keywordsStr string) []string {
-	if keywordsStr == "" {
-		return []string{}
-	}
-
-	keywords := strings.Split(keywordsStr, ",")
-	for i, k := range keywords {
-		keywords[i] = strings.TrimSpace(k)
-	}
-	return keywords
 }
