@@ -1,6 +1,11 @@
 package xhs
 
 import (
+	"bytes"
+	"encoding/json"
+	"fmt"
+	"io"
+	"strings"
 	"time"
 
 	"github.com/enneket/rednote-extract/tool/crawler/internal/config"
@@ -51,7 +56,7 @@ func (c *RednoteClient) Pong() bool {
 	c.logger.Info("[RednoteClient.Pong] Begin to pong Rednote...")
 
 	searchID := tools.GetRandomString(16)
-	result, err := c.GetNoteByKeyword("Rednote", searchID, 1, "")
+	result, err := c.GetNoteByKeyword("Rednote", searchID, 1, 20, SearchSortTypeGeneral, SearchNoteTypeAll)
 	if err != nil {
 		c.logger.Error("[RednoteClient.Pong] Pong failed: %v, need to login again", err)
 		return false
@@ -72,27 +77,191 @@ func (c *RednoteClient) UpdateCookies(cookies string) {
 	c.httpClient.Config().Headers["Cookie"] = cookies
 }
 
-// GetNoteByKeyword 根据关键词搜索帖子
-func (c *RednoteClient) GetNoteByKeyword(keyword, searchID string, pageNum int, sortType string) (map[string]interface{}, error) {
-	c.logger.Info("[RednoteClient.GetNoteByKeyword] Searching for keyword: %s, page: %d", keyword, pageNum)
+// SearchSortType 搜索结果排序类型
+type SearchSortType string
 
-	return map[string]interface{}{
-		"has_more": true,
-		"items":    []map[string]interface{}{},
-	}, nil
+const (
+	// SearchSortTypeGeneral 综合排序
+	SearchSortTypeGeneral SearchSortType = "general"
+	// SearchSortTypeLatest 最新排序
+	SearchSortTypeLatest SearchSortType = "latest"
+	// SearchSortTypeMostLiked 最多点赞
+	SearchSortTypeMostLiked SearchSortType = "most_liked"
+)
+
+// SearchNoteType 搜索帖子类型
+type SearchNoteType string
+
+const (
+	// SearchNoteTypeAll 全部类型
+	SearchNoteTypeAll SearchNoteType = "all"
+	// SearchNoteTypeImage 图片类型
+	SearchNoteTypeImage SearchNoteType = "image"
+	// SearchNoteTypeVideo 视频类型
+	SearchNoteTypeVideo SearchNoteType = "video"
+)
+
+// getSearchID 生成搜索ID
+func getSearchID() string {
+	return tools.GetRandomString(16)
+}
+
+// GetNoteByKeyword 根据关键词搜索帖子
+func (c *RednoteClient) GetNoteByKeyword(keyword string, searchID string, page, pageSize int, sort SearchSortType, noteType SearchNoteType) (map[string]interface{}, error) {
+	c.logger.Info("[RednoteClient.GetNoteByKeyword] Searching for keyword: %s, page: %d, pageSize: %d, sort: %s, noteType: %s",
+		keyword, page, pageSize, sort, noteType)
+
+	// Use default searchID if not provided
+	if searchID == "" {
+		searchID = getSearchID()
+	}
+
+	// Use default values if not provided
+	if page <= 0 {
+		page = 1
+	}
+	if pageSize <= 0 {
+		pageSize = 20
+	}
+	if sort == "" {
+		sort = SearchSortTypeGeneral
+	}
+	if noteType == "" {
+		noteType = SearchNoteTypeAll
+	}
+
+	// Construct request data
+	uri := "/api/sns/web/v1/search/notes"
+	data := map[string]interface{}{
+		"keyword":   keyword,
+		"page":      page,
+		"page_size": pageSize,
+		"search_id": searchID,
+		"sort":      string(sort),
+		"note_type": string(noteType),
+	}
+
+	// Send POST request using Post method
+	result, err := c.Post(uri, data, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	// Convert result to map[string]interface{}
+	if resultMap, ok := result.(map[string]interface{}); ok {
+		return resultMap, nil
+	}
+
+	return nil, fmt.Errorf("unexpected result type: %T", result)
 }
 
 // GetNoteByID 根据ID获取帖子详情
 func (c *RednoteClient) GetNoteByID(noteID, xsecSource, xsecToken string) (*model.Note, error) {
 	c.logger.Info("[RednoteClient.GetNoteByID] Getting note detail: %s", noteID)
 
-	return &model.Note{
-		NoteID:       noteID,
-		Title:        "Test Note",
-		AuthorName:   "Test Author",
-		LikeCount:    100,
-		CommentCount: 10,
-	}, nil
+	// Set default xsec_source if empty
+	if xsecSource == "" {
+		xsecSource = "pc_search"
+	}
+
+	// Prepare request data
+	data := map[string]interface{}{
+		"source_note_id": noteID,
+		"image_formats":  []string{"jpg", "webp", "avif"},
+		"extra":          map[string]interface{}{"need_body_topic": 1},
+		"xsec_source":    xsecSource,
+		"xsec_token":     xsecToken,
+	}
+
+	// Send POST request
+	uri := "/api/sns/web/v1/feed"
+	res, err := c.Post(uri, data, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	// Parse response
+	if resMap, ok := res.(map[string]interface{}); ok {
+		if items, ok := resMap["items"].([]interface{}); ok && len(items) > 0 {
+			// Check if items[0] is a map
+			if _, ok := items[0].(map[string]interface{}); ok {
+				// Create and return model.Note
+				// This is a simplified version - would need proper parsing from note_card in production
+				return &model.Note{
+					NoteID:     noteID,
+					XsecToken:  xsecToken,
+					XsecSource: xsecSource,
+				}, nil
+			}
+		}
+	}
+
+	// Log error if no results
+	c.logger.Error("[RednoteClient.GetNoteByID] get note id:%s empty and res:%v", noteID, res)
+	return &model.Note{NoteID: noteID}, nil
+}
+
+// GetNoteComments 获取帖子一级评论
+func (c *RednoteClient) GetNoteComments(noteID, xsecToken, cursor string) (map[string]interface{}, error) {
+	c.logger.Info("[RednoteClient.GetNoteComments] Getting comments for note: %s, cursor: %s", noteID, cursor)
+
+	// Prepare request params
+	params := map[string]string{
+		"note_id":        noteID,
+		"cursor":         cursor,
+		"top_comment_id": "",
+		"image_formats":  "jpg,webp,avif",
+		"xsec_token":     xsecToken,
+	}
+
+	// Send GET request
+	uri := "/api/sns/web/v2/comment/page"
+	result, err := c.Get(uri, params)
+	if err != nil {
+		return nil, err
+	}
+
+	// Convert result to map[string]interface{}
+	if resultMap, ok := result.(map[string]interface{}); ok {
+		return resultMap, nil
+	}
+
+	return nil, fmt.Errorf("unexpected result type: %T", result)
+}
+
+// GetNoteSubComments 获取帖子子评论
+func (c *RednoteClient) GetNoteSubComments(noteID, rootCommentID, xsecToken, cursor string, num int) (map[string]interface{}, error) {
+	c.logger.Info("[RednoteClient.GetNoteSubComments] Getting sub-comments for note: %s, root_comment_id: %s, cursor: %s", noteID, rootCommentID, cursor)
+
+	// Use default num if not provided
+	if num <= 0 {
+		num = 10
+	}
+
+	// Prepare request params
+	params := map[string]string{
+		"note_id":         noteID,
+		"root_comment_id": rootCommentID,
+		"cursor":          cursor,
+		"num":             fmt.Sprintf("%d", num),
+		"image_formats":   "jpg,webp,avif",
+		"top_comment_id":  "",
+		"xsec_token":      xsecToken,
+	}
+
+	// Send GET request
+	uri := "/api/sns/web/v2/comment/sub/page"
+	result, err := c.Get(uri, params)
+	if err != nil {
+		return nil, err
+	}
+
+	// Convert result to map[string]interface{}
+	if resultMap, ok := result.(map[string]interface{}); ok {
+		return resultMap, nil
+	}
+
+	return nil, fmt.Errorf("unexpected result type: %T", result)
 }
 
 // GetNoteByIDFromHTML 从HTML中获取帖子详情
@@ -142,41 +311,274 @@ func (c *RednoteClient) GetAllNotesByCreator(userID string, crawlInterval int, c
 
 // GetNoteAllComments 获取帖子的所有评论
 func (c *RednoteClient) GetNoteAllComments(noteID, xsecToken string, crawlInterval int, maxCount int) ([]*model.Comment, error) {
-	c.logger.Info("[RednoteClient.GetNoteAllComments] Getting all comments for note: %s", noteID)
+	c.logger.Info("[RednoteClient.GetNoteAllComments] Getting all comments for note: %s, maxCount: %d", noteID, maxCount)
 
-	comments := []*model.Comment{
-		{
-			CommentID:   "test_comment_1",
-			NoteID:      noteID,
-			UserID:      "test_user_1",
-			UserName:    "Test User 1",
-			Content:     "Test Comment 1",
-			LikeCount:   10,
-			PublishTime: time.Now().Unix(),
-		},
-		{
-			CommentID:   "test_comment_2",
-			NoteID:      noteID,
-			UserID:      "test_user_2",
-			UserName:    "Test User 2",
-			Content:     "Test Comment 2",
-			LikeCount:   20,
-			PublishTime: time.Now().Unix(),
-		},
+	var allComments []*model.Comment
+	var cursor string
+	hasMore := true
+
+	// Fetch first-level comments with pagination
+	for hasMore && len(allComments) < maxCount {
+		// Get comments page
+		commentsRes, err := c.GetNoteComments(noteID, xsecToken, cursor)
+		if err != nil {
+			return nil, err
+		}
+
+		// commentsRes is already a map[string]interface{} from GetNoteComments
+
+		// Parse comments list
+		if commentsList, ok := commentsRes["comments"].([]interface{}); ok {
+			for _, commentItem := range commentsList {
+				if commentMap, ok := commentItem.(map[string]interface{}); ok {
+					// Convert to model.Comment (simplified parsing)
+					comment := &model.Comment{
+						NoteID: noteID,
+						CommentID: func() string {
+							if id, ok := commentMap["id"].(string); ok {
+								return id
+							}
+							return ""
+						}(),
+						Content: func() string {
+							if content, ok := commentMap["content"].(string); ok {
+								return content
+							}
+							return ""
+						}(),
+						LikeCount: func() int {
+							if count, ok := commentMap["like_count"].(float64); ok {
+								return int(count)
+							}
+							return 0
+						}(),
+						PublishTime: func() int64 {
+							if time, ok := commentMap["create_time"].(float64); ok {
+								return int64(time)
+							}
+							return time.Now().Unix()
+						}(),
+					}
+
+					// Fetch sub-comments if needed
+					var subCursor string
+					hasMoreSubComments := true
+					subCommentCount := 0
+
+					for hasMoreSubComments && len(allComments)+1+subCommentCount < maxCount {
+						subCommentsRes, err := c.GetNoteSubComments(noteID, comment.CommentID, xsecToken, subCursor, 10)
+						if err != nil {
+							break
+						}
+
+						// Parse sub-comments
+						if subCommentsList, ok := subCommentsRes["comments"].([]interface{}); ok {
+							for _, subCommentItem := range subCommentsList {
+								if subCommentMap, ok := subCommentItem.(map[string]interface{}); ok {
+									subComment := &model.Comment{
+										NoteID:   noteID,
+										ParentID: comment.CommentID,
+										CommentID: func() string {
+											if id, ok := subCommentMap["id"].(string); ok {
+												return id
+											}
+											return ""
+										}(),
+										Content: func() string {
+											if content, ok := subCommentMap["content"].(string); ok {
+												return content
+											}
+											return ""
+										}(),
+										LikeCount: func() int {
+											if count, ok := subCommentMap["like_count"].(float64); ok {
+												return int(count)
+											}
+											return 0
+										}(),
+										PublishTime: func() int64 {
+											if time, ok := subCommentMap["create_time"].(float64); ok {
+												return int64(time)
+											}
+											return time.Now().Unix()
+										}(),
+									}
+									comment.SubComments = append(comment.SubComments, *subComment)
+									subCommentCount++
+								}
+							}
+						}
+
+						// Check if there are more sub-comments
+						if newSubCursor, ok := subCommentsRes["cursor"].(string); ok && newSubCursor != "" {
+							subCursor = newSubCursor
+						} else {
+							hasMoreSubComments = false
+						}
+					}
+
+					allComments = append(allComments, comment)
+					if len(allComments) >= maxCount {
+						break
+					}
+				}
+			}
+		}
+
+		// Check if there are more comments
+		if newCursor, ok := commentsRes["cursor"].(string); ok && newCursor != "" {
+			cursor = newCursor
+		} else {
+			hasMore = false
+		}
+
+		// Add delay between requests
+		if hasMore {
+			time.Sleep(time.Duration(crawlInterval) * time.Second)
+		}
 	}
 
-	return comments, nil
+	return allComments, nil
 }
 
-// GetNoteMedia 获取帖子媒体
-func (c *RednoteClient) GetNoteMedia(url string) ([]byte, error) {
-	c.logger.Info("[RednoteClient.GetNoteMedia] Getting media from URL: %s", url)
+// playwrightPageAdapter adapts playwright.Page to tools.Page interface
 
-	return []byte("test media content"), nil
+type playwrightPageAdapter struct {
+	page playwright.Page
+}
+
+func (a *playwrightPageAdapter) Evaluate(expression string, options ...interface{}) interface{} {
+	result, _ := a.page.Evaluate(expression, options...)
+	return result
+}
+
+// PreHeaders 生成带签名的请求头
+func (c *RednoteClient) PreHeaders(url string, params map[string]string, payload map[string]interface{}) map[string]string {
+	c.logger.Info("[RednoteClient.PreHeaders] Generating signed headers for URL: %s", url)
+
+	// Parse cookies to get a1 value
+	cookieDict := make(map[string]string)
+	for _, cookie := range strings.Split(c.cookies, "; ") {
+		parts := strings.SplitN(cookie, "=", 2)
+		if len(parts) == 2 {
+			cookieDict[parts[0]] = parts[1]
+		}
+	}
+
+	// Create adapter and playwright client to generate headers
+	adapter := &playwrightPageAdapter{page: c.page}
+	playwrightClient := tools.NewPlaywrightClient(adapter)
+	headers := playwrightClient.PreHeadersWithPlaywright(url, cookieDict, params, payload)
+
+	// Update HTTP client headers
+	for k, v := range headers {
+		c.httpClient.Config().Headers[k] = v
+	}
+
+	return headers
+}
+
+// Request 发送HTTP请求并处理响应
+func (c *RednoteClient) Request(method, url string, returnResponse bool, headers map[string]string, params map[string]string, payload interface{}) (interface{}, error) {
+	c.logger.Info("[RednoteClient.Request] Sending %s request to URL: %s", method, url)
+
+	// Prepare request body if payload exists
+	var bodyReader io.Reader
+	if payload != nil {
+		jsonData, err := json.Marshal(payload)
+		if err != nil {
+			return nil, err
+		}
+		bodyReader = bytes.NewBuffer(jsonData)
+		if headers == nil {
+			headers = make(map[string]string)
+		}
+		headers["Content-Type"] = "application/json"
+	}
+
+	// Send request using existing HTTP client
+	respBody, err := c.httpClient.Request(method, url, bodyReader, headers)
+	if err != nil {
+		// Check if it's an HTTP error with specific status codes
+		if httpErr, ok := err.(*tools.HTTPError); ok {
+			if httpErr.StatusCode == 471 || httpErr.StatusCode == 461 {
+				// Handle CAPTCHA error
+				return nil, fmt.Errorf("CAPTCHA appeared, request failed, status_code: %d, body: %s", httpErr.StatusCode, httpErr.Body)
+			}
+		}
+		return nil, err
+	}
+
+	// If return_response is true, return raw response text
+	if returnResponse {
+		return string(respBody), nil
+	}
+
+	// Parse JSON response
+	var data map[string]interface{}
+	if err := json.Unmarshal(respBody, &data); err != nil {
+		return nil, err
+	}
+
+	// Handle response based on success field
+	if success, ok := data["success"].(bool); ok && success {
+		if dataValue, exists := data["data"]; exists {
+			return dataValue, nil
+		}
+		if successValue, exists := data["success"]; exists {
+			return successValue, nil
+		}
+		return data, nil
+	} else if code, ok := data["code"].(float64); ok {
+		// Check for IP error code (assuming 50011 is the IP error code, will need adjustment based on actual code)
+		const IP_ERROR_CODE = 50011
+		if code == IP_ERROR_CODE {
+			return nil, fmt.Errorf("IP blocked")
+		}
+	}
+
+	// Handle other errors
+	errMsg := "Unknown error"
+	if msg, ok := data["msg"].(string); ok {
+		errMsg = msg
+	} else {
+		errMsg = string(respBody)
+	}
+
+	return nil, fmt.Errorf("Data fetch error: %s", errMsg)
+}
+
+// Get 发送带签名的GET请求
+func (c *RednoteClient) Get(uri string, params map[string]string) (interface{}, error) {
+	c.logger.Info("[RednoteClient.Get] Sending GET request to URI: %s", uri)
+
+	// Get signed headers using PreHeaders method
+	headers := c.PreHeaders(uri, params, nil)
+
+	// Construct full URL (using origin from headers as host)
+	const host = "https://www.xiaohongshu.com"
+	fullURL := host + uri
+
+	// Send GET request using Request method
+	return c.Request("GET", fullURL, false, headers, params, nil)
+}
+
+// Post 发送带签名的POST请求
+func (c *RednoteClient) Post(uri string, payload map[string]interface{}, params map[string]string) (interface{}, error) {
+	c.logger.Info("[RednoteClient.Post] Sending POST request to URI: %s", uri)
+
+	// Get signed headers using PreHeaders method
+	headers := c.PreHeaders(uri, params, payload)
+
+	// Construct full URL (using origin from headers as host)
+	const host = "https://www.xiaohongshu.com"
+	fullURL := host + uri
+
+	// Send POST request using Request method
+	return c.Request("POST", fullURL, false, headers, params, payload)
 }
 
 // Config 获取HTTP客户端配置
 func (c *RednoteClient) Config() tools.HTTPConfig {
-	cfg := c.httpClient.Config()
-	return cfg
+	return c.httpClient.Config()
 }

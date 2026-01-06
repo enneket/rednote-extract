@@ -77,7 +77,18 @@ func (c *RednoteCrawler) Search() ([]*model.Note, error) {
 
 		c.logger.Info("[RednoteCrawler] Searching keyword: %s, page: %d", keyword, page)
 
-		notesRes, err := c.client.GetNoteByKeyword(keyword, searchID, page, c.config.SortType)
+		// Map config.SortType to SearchSortType
+		var sortType SearchSortType
+		switch c.config.SortType {
+		case "latest":
+			sortType = SearchSortTypeLatest
+		case "most_liked":
+			sortType = SearchSortTypeMostLiked
+		default:
+			sortType = SearchSortTypeGeneral
+		}
+
+		notesRes, err := c.client.GetNoteByKeyword(keyword, searchID, page, 20, sortType, SearchNoteTypeAll)
 		if err != nil {
 			c.logger.Error("[RednoteCrawler] Failed to get search results: %v", err)
 			break
