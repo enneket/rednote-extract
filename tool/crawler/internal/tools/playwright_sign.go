@@ -6,86 +6,75 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/url"
-	"sort"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/playwright-community/playwright-go"
 )
 
-type Page interface {
-	Evaluate(expression string, options ...interface{}) interface{}
-}
-
-type RequestData interface{}
-
-type PlaywrightClient struct {
-	page Page
-}
-
-func NewPlaywrightClient(page Page) *PlaywrightClient {
-	return &PlaywrightClient{page: page}
-}
-
-func BuildSignString(uri string, data interface{}, method string) string {
-	methodUpper := strings.ToUpper(method)
-
-	if methodUpper == "POST" {
+func buildSignString(uri string, data interface{}, method string) string {
+	if strings.ToUpper(method) == "POST" {
+		// POST request uses JSON format
 		c := uri
 		if data != nil {
 			switch v := data.(type) {
 			case map[string]interface{}:
-				c += MapToJson(v)
+				jsonBytes, _ := json.Marshal(v)
+				c += string(jsonBytes)
 			case string:
 				c += v
-			case []byte:
-				c += string(v)
 			}
 		}
 		return c
 	} else {
+		// GET request uses query string format
 		if data == nil {
 			return uri
 		}
 
 		switch v := data.(type) {
-		case map[string]string:
+		case map[string]interface{}:
 			if len(v) == 0 {
 				return uri
 			}
-			params := []string{}
-			keys := make([]string, 0, len(v))
-			for key := range v {
-				keys = append(keys, key)
-			}
-			sort.Strings(keys)
-			for _, key := range keys {
-				valueStr := v[key]
-				valueStr = CustomQuote(valueStr, false)
-				params = append(params, fmt.Sprintf("%s=%s", key, valueStr))
+			var params []string
+			for key, value := range v {
+				var valueStr string
+				switch val := value.(type) {
+				case []interface{}:
+					var strSlice []string
+					for _, item := range val {
+						strSlice = append(strSlice, fmt.Sprintf("%v", item))
+					}
+					valueStr = strings.Join(strSlice, ",")
+				case nil:
+					valueStr = ""
+				default:
+					valueStr = fmt.Sprintf("%v", val)
+				}
+				// URL encoding without safe characters
+				valueStr = url.QueryEscape(valueStr)
+				params = append(params, key+"="+valueStr)
 			}
 			return uri + "?" + strings.Join(params, "&")
 		case string:
 			return uri + "?" + v
+		default:
+			return uri
 		}
-		return uri
 	}
 }
 
-func MapToJson(m map[string]interface{}) string {
-	result, err := json.Marshal(m)
-	if err != nil {
-		return "{}"
+func md5Hex(s string) string {
+	hash := md5.Sum([]byte(s))
+	return hex.EncodeToString(hash[:])
+}
+
+func buildXSPayload(x3Value string, dataType string) string {
+	if dataType == "" {
+		dataType = "object"
 	}
-	return string(result)
-}
-
-func Md5Hex(s string) string {
-	h := md5.New()
-	h.Write([]byte(s))
-	return hex.EncodeToString(h.Sum(nil))
-}
-
-func BuildXsPayload(x3Value string, dataType string) string {
 	s := map[string]interface{}{
 		"x0": "4.2.1",
 		"x1": "xhs-pc-web",
@@ -93,11 +82,11 @@ func BuildXsPayload(x3Value string, dataType string) string {
 		"x3": x3Value,
 		"x4": dataType,
 	}
-	jsonStr, _ := json.Marshal(s)
-	return "XYS_" + B64Encode(EncodeUtf8(string(jsonStr)))
+	jsonBytes, _ := json.Marshal(s)
+	return "XYS_" + B64Encode(EncodeUtf8(string(jsonBytes)))
 }
 
-func BuildXsCommon(a1 string, b1 string, xS string, xT string) string {
+func buildXSCommon(a1 string, b1 string, x_s string, x_t string) string {
 	payload := map[string]interface{}{
 		"s0":  3,
 		"s1":  "",
@@ -107,141 +96,132 @@ func BuildXsCommon(a1 string, b1 string, xS string, xT string) string {
 		"x3":  "xhs-pc-web",
 		"x4":  "4.74.0",
 		"x5":  a1,
-		"x6":  xT,
-		"x7":  xS,
+		"x6":  x_t,
+		"x7":  x_s,
 		"x8":  b1,
-		"x9":  MRC(xT + xS + b1),
+		"x9":  Mrc(x_t + x_s + b1),
 		"x10": 154,
 		"x11": "normal",
 	}
-	jsonStr, _ := json.Marshal(payload)
-	return B64Encode(EncodeUtf8(string(jsonStr)))
+	jsonBytes, _ := json.Marshal(payload)
+	return B64Encode(EncodeUtf8(string(jsonBytes)))
 }
 
-func (c *PlaywrightClient) GetB1FromLocalStorage() string {
-	if c.page == nil {
-		return ""
-	}
-	result := c.page.Evaluate("() => window.localStorage")
-	if result == nil {
-		return ""
+func GetB1FromLocalStorage(page playwright.Page) (string, error) {
+	localStorage, err := page.Evaluate(`() => window.localStorage`, nil)
+	if err != nil {
+		return "", err
 	}
 
-	if m, ok := result.(map[string]interface{}); ok {
-		if b1, ok := m["b1"]; ok {
+	if localStorageMap, ok := localStorage.(map[string]interface{}); ok {
+		if b1, exists := localStorageMap["b1"]; exists {
 			if b1Str, ok := b1.(string); ok {
-				return b1Str
+				return b1Str, nil
 			}
+		} else {
+			return "", fmt.Errorf("b1 not found in localStorage")
 		}
+	} else {
+		return "", fmt.Errorf("localStorage is not a map[string]interface{}")
 	}
-	return ""
+	return "", nil
 }
 
-func (c *PlaywrightClient) CallMnsv2(signStr string, md5Str string) string {
-	if c.page == nil {
-		return ""
-	}
-
+func CallMNSV2(page playwright.Page, signStr string, md5Str string) (string, error) {
+	// Escape special characters for JavaScript
 	signStrEscaped := strings.ReplaceAll(signStr, "\\", "\\\\")
 	signStrEscaped = strings.ReplaceAll(signStrEscaped, "'", "\\'")
 	signStrEscaped = strings.ReplaceAll(signStrEscaped, "\n", "\\n")
+
 	md5StrEscaped := strings.ReplaceAll(md5Str, "\\", "\\\\")
 	md5StrEscaped = strings.ReplaceAll(md5StrEscaped, "'", "\\'")
 
-	script := fmt.Sprintf("window.mnsv2('%s', '%s')", signStrEscaped, md5StrEscaped)
-	result := c.page.Evaluate(script)
-	if result == nil {
-		return ""
+	evalStr := fmt.Sprintf("window.mnsv2('%s', '%s')", signStrEscaped, md5StrEscaped)
+	result, err := page.Evaluate(evalStr, nil)
+	if err != nil {
+		return "", err
 	}
+
 	if resultStr, ok := result.(string); ok {
-		return resultStr
+		return resultStr, nil
 	}
-	return ""
+	return "", nil
 }
 
-func (c *PlaywrightClient) SignXsWithPlaywright(uri string, data interface{}, method string) string {
-	signStr := BuildSignString(uri, data, method)
-	md5Str := Md5Hex(signStr)
-	x3Value := c.CallMnsv2(signStr, md5Str)
+func SignXSWithPlaywright(page playwright.Page, uri string, data interface{}, method string) (string, error) {
+	signStr := buildSignString(uri, data, method)
+	md5Str := md5Hex(signStr)
+	x3Value, err := CallMNSV2(page, signStr, md5Str)
+	if err != nil {
+		return "", err
+	}
 
-	var dataType string
+	dataType := "object"
 	switch data.(type) {
-	case map[string]interface{}, []interface{}:
-		dataType = "object"
-	default:
+	case string:
 		dataType = "string"
 	}
 
-	return BuildXsPayload(x3Value, dataType)
+	return buildXSPayload(x3Value, dataType), nil
 }
 
-func (c *PlaywrightClient) SignWithPlaywright(uri string, data interface{}, a1 string, method string) map[string]interface{} {
-	b1 := c.GetB1FromLocalStorage()
-	xS := c.SignXsWithPlaywright(uri, data, method)
-	xT := strconv.FormatInt(time.Now().UnixMilli(), 10)
+func SignWithPlaywright(page playwright.Page, uri string, data interface{}, a1 string, method string) (map[string]string, error) {
+	b1, err := GetB1FromLocalStorage(page)
+	if err != nil {
+		return nil, err
+	}
 
-	return map[string]interface{}{
-		"x-s":          xS,
-		"x-t":          xT,
-		"x-s-common":   BuildXsCommon(a1, b1, xS, xT),
+	x_s, err := SignXSWithPlaywright(page, uri, data, method)
+	if err != nil {
+		return nil, err
+	}
+
+	x_t := strconv.FormatInt(time.Now().UnixMilli(), 10)
+
+	return map[string]string{
+		"x-s":          x_s,
+		"x-t":          x_t,
+		"x-s-common":   buildXSCommon(a1, b1, x_s, x_t),
 		"x-b3-traceid": GetTraceId(),
-	}
+	}, nil
 }
 
-func (c *PlaywrightClient) PreHeadersWithPlaywright(
-	urlStr string,
-	cookieDict map[string]string,
-	params map[string]string,
-	payload map[string]interface{},
-) map[string]string {
-	a1Value := ""
-	if a1, ok := cookieDict["a1"]; ok {
-		a1Value = a1
-	}
-
+func PreHeadersWithPlaywright(page playwright.Page, urlStr string, cookieDict map[string]string, params map[string]interface{}, payload map[string]interface{}) (map[string]string, error) {
+	a1Value := cookieDict["a1"]
 	parsedURL, err := url.Parse(urlStr)
 	if err != nil {
-		return map[string]string{}
+		return nil, err
 	}
 	uri := parsedURL.Path
 
 	var data interface{}
-	httpMethod := "POST"
+	var method string
 
-	if params != nil && len(params) > 0 {
+	if params != nil {
 		data = params
-		httpMethod = "GET"
+		method = "GET"
 	} else if payload != nil {
 		data = payload
-		httpMethod = "POST"
+		method = "POST"
+	} else {
+		return nil, fmt.Errorf("params or payload is required")
 	}
 
-	signs := c.SignWithPlaywright(uri, data, a1Value, httpMethod)
+	page.Goto("https://www.xiaohongshu.com", playwright.PageGotoOptions{
+		WaitUntil: playwright.WaitUntilStateLoad,
+	})
+
+	time.Sleep(5 * time.Second)
+
+	signs, err := SignWithPlaywright(page, uri, data, a1Value, method)
+	if err != nil {
+		return nil, err
+	}
 
 	return map[string]string{
-		"X-S":          signs["x-s"].(string),
-		"X-T":          signs["x-t"].(string),
-		"x-S-Common":   signs["x-s-common"].(string),
-		"X-B3-Traceid": signs["x-b3-traceid"].(string),
-	}
-}
-
-func CustomQuote(s string, safeComma bool) string {
-	result := strings.Builder{}
-	for _, r := range []rune(s) {
-		if (r >= 'A' && r <= 'Z') || (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') {
-			result.WriteRune(r)
-		} else if strings.ContainsRune("-_.~()*!.'", r) {
-			result.WriteRune(r)
-		} else if safeComma && r == ',' {
-			result.WriteRune(r)
-		} else if r == ' ' {
-			result.WriteString("%20")
-		} else {
-			for _, b := range []byte(string(r)) {
-				result.WriteString(fmt.Sprintf("%%%02X", b))
-			}
-		}
-	}
-	return result.String()
+		"X-S":          signs["x-s"],
+		"X-T":          signs["x-t"],
+		"x-S-Common":   signs["x-s-common"],
+		"X-B3-Traceid": signs["x-b3-traceid"],
+	}, nil
 }

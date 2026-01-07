@@ -2,8 +2,6 @@ package config
 
 // Config 应用配置结构体，定义了爬虫的所有配置项
 type Config struct {
-	// Keyword 搜索关键词，用于爬取指定关键词的内容
-	Keyword string `mapstructure:"KEYWORD"`
 	// Cookies 登录Cookie字符串，当LoginType为cookie时使用
 	Cookies string `mapstructure:"COOKIES"`
 	// Headless 浏览器是否以无头模式运行
@@ -36,6 +34,8 @@ type Config struct {
 	CrawlerMaxSleepSec int `mapstructure:"CRAWLER_MAX_SLEEP_SEC"`
 	// SortType 排序方式
 	SortType string `mapstructure:"SORT_TYPE"`
+	// OutputDir 输出目录路径
+	OutputDir string `mapstructure:"OUTPUT_DIR"`
 }
 
 // DefaultConfig 返回默认配置
@@ -56,6 +56,7 @@ func DefaultConfig() *Config {
 		CrawlerMaxCommentsCountSingleNotes: 50,
 		EnableGetSubComments:               true,
 		CrawlerMaxSleepSec:                 2,
-		SortType:                           "popularity_descending",
+		SortType:                           "",
+		OutputDir:                          "./data",
 	}
 }

@@ -59,16 +59,14 @@ func (c *RednoteCrawler) Init() error {
 }
 
 // Search 搜索帖子
-func (c *RednoteCrawler) Search() ([]*model.Note, error) {
+func (c *RednoteCrawler) Search(keyword string) ([]*model.Note, error) {
 	c.logger.Info("[RednoteCrawler] Begin search Rednote keywords")
-
-	keyword := c.config.Keyword
 	c.logger.Info("[RednoteCrawler] Current search keyword: %s", keyword)
 
 	var allNotes []*model.Note
 
 	page := 1
-	searchID := tools.GetRandomString(16)
+	searchID := tools.GetSearchID()
 
 	for (page-c.config.StartPage+1)*20 <= c.config.CrawlerMaxNotesCount {
 		if page < c.config.StartPage {
@@ -159,10 +157,9 @@ func (c *RednoteCrawler) parseNoteFromSearchResult(item map[string]interface{}, 
 }
 
 // GetSpecifiedNotes 获取指定帖子详情
-func (c *RednoteCrawler) GetSpecifiedNotes() (*model.Note, error) {
+func (c *RednoteCrawler) GetSpecifiedNotes(noteURL string) (*model.Note, error) {
 	c.logger.Info("[RednoteCrawler] Begin get specified notes")
 
-	noteURL := c.config.Keyword
 	c.logger.Info("[RednoteCrawler] Processing note URL: %s", noteURL)
 
 	noteInfo := parseNoteInfoFromNoteURL(noteURL)

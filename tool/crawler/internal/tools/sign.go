@@ -1,9 +1,10 @@
 package tools
 
 import (
-	"crypto/rand"
 	"fmt"
+	"math/rand"
 	"strings"
+	"time"
 )
 
 var base64Chars = []byte("ZmserbBoHQtNP+wOcza/LpngG8yJq42KWYj0DSfdikx3VT16IlUAFM97hECvuRX5")
@@ -58,7 +59,7 @@ func RightShiftUnsigned(num uint32, bit uint) uint32 {
 	return (num >> bit) & 0xFFFFFFFF
 }
 
-func MRC(e string) int {
+func Mrc(e string) int {
 	o := -1
 	length := len(e)
 	if length > 57 {
@@ -148,11 +149,11 @@ func B64Encode(data []int) string {
 }
 
 func GetTraceId() string {
-	const letters = "abcdef0123456789"
-	b := make([]byte, 16)
-	rand.Read(b)
-	for i := 0; i < 16; i++ {
-		b[i] = letters[int(b[i])%16]
+	const chars = "abcdef0123456789"
+	source := rand.NewSource(time.Now().UnixNano())
+	result := make([]byte, 16)
+	for i := range result {
+		result[i] = chars[source.Int63()%16]
 	}
-	return string(b)
+	return string(result)
 }

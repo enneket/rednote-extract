@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"sync"
 
+	"github.com/enneket/rednote-extract/tool/crawler/internal/config"
 	"github.com/enneket/rednote-extract/tool/crawler/internal/model"
 )
 
@@ -19,10 +20,10 @@ type JSONStore struct {
 }
 
 // NewJSONStore 创建JSON存储实例
-func NewJSONStore(config map[string]interface{}) (Store, error) {
+func NewJSONStore(config *config.Config) (Store, error) {
 	dirPath := "./data"
-	if path, ok := config["dir"].(string); ok {
-		dirPath = path
+	if config.OutputDir != "" {
+		dirPath = config.OutputDir
 	}
 
 	// 创建数据目录

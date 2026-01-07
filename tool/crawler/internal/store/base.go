@@ -1,6 +1,7 @@
 package store
 
 import (
+	"github.com/enneket/rednote-extract/tool/crawler/internal/config"
 	"github.com/enneket/rednote-extract/tool/crawler/internal/model"
 )
 
@@ -26,6 +27,6 @@ type Store interface {
 }
 
 // NewStore 创建存储实例
-func NewStore(storeType string, config map[string]interface{}) (Store, error) {
+func NewStore(storeType string, config *config.Config) (Store, error) {
 	return NewJSONStore(config) // 默认使用JSON存储
 }

@@ -23,22 +23,46 @@ type RednoteClient struct {
 	logger     tools.Logger
 }
 
+/**
+  "accept-language": "zh-CN,zh;q=0.9",
+  "cache-control": "no-cache",
+
+  "origin": "https://www.xiaohongshu.com",
+  "pragma": "no-cache",
+  "priority": "u=1, i",
+  "referer": "https://www.xiaohongshu.com/",
+  "sec-ch-ua": '"Chromium";v="136", "Google Chrome";v="136", "Not.A/Brand";v="99"',
+  "sec-ch-ua-mobile": "?0",
+  "sec-ch-ua-platform": '"Windows"',
+  "sec-fetch-dest": "empty",
+  "sec-fetch-mode": "cors",
+  "sec-fetch-site": "same-site",
+  "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36",
+  "Cookie": cookie_str,
+*/
 // NewRednoteClient 创建Rednote客户端
 func NewRednoteClient(cfg *config.Config, page playwright.Page, cookies string, logger tools.Logger) *RednoteClient {
 	httpConfig := tools.HTTPConfig{
 		Timeout:   30 * time.Second,
 		UserAgent: tools.GetRandomUserAgent(),
+
 		Headers: map[string]string{
-			"Accept":          "application/json, text/plain, */*",
-			"Accept-Language": "zh-CN,zh;q=0.9",
-			"Cache-Control":   "no-cache",
-			"Origin":          "https://www.xiaohongshu.com",
-			"Pragma":          "no-cache",
-			"Referer":         "https://www.xiaohongshu.com/",
-			"Sec-Fetch-Dest":  "empty",
-			"Sec-Fetch-Mode":  "cors",
-			"Sec-Fetch-Site":  "same-site",
-			"Cookie":          cookies,
+			"accept":             "application/json, text/plain, */*",
+			"accept-language":    "zh-CN,zh;q=0.9",
+			"cache-control":      "no-cache",
+			"content-type":       "application/json;charset=UTF-8",
+			"origin":             "https://www.xiaohongshu.com",
+			"pragma":             "no-cache",
+			"priority":           "u=1, i",
+			"referer":            "https://www.xiaohongshu.com/",
+			"sec-ch-ua":          `"Chromium";v="136", "Google Chrome";v="136", "Not.A/Brand";v="99"`,
+			"sec-ch-ua-mobile":   "?0",
+			"sec-ch-ua-platform": `"Windows"`,
+			"sec-fetch-dest":     "empty",
+			"sec-fetch-mode":     "cors",
+			"sec-fetch-site":     "same-site",
+			"user-agent":         "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36",
+			"Cookie":             cookies,
 		},
 	}
 
@@ -84,27 +108,22 @@ const (
 	// SearchSortTypeGeneral 综合排序
 	SearchSortTypeGeneral SearchSortType = "general"
 	// SearchSortTypeLatest 最新排序
-	SearchSortTypeLatest SearchSortType = "latest"
+	SearchSortTypeLatest SearchSortType = "time_descending"
 	// SearchSortTypeMostLiked 最多点赞
-	SearchSortTypeMostLiked SearchSortType = "most_liked"
+	SearchSortTypeMostLiked SearchSortType = "popularity_descending"
 )
 
 // SearchNoteType 搜索帖子类型
-type SearchNoteType string
+type SearchNoteType int
 
 const (
 	// SearchNoteTypeAll 全部类型
-	SearchNoteTypeAll SearchNoteType = "all"
+	SearchNoteTypeAll SearchNoteType = 0
 	// SearchNoteTypeImage 图片类型
-	SearchNoteTypeImage SearchNoteType = "image"
+	SearchNoteTypeImage SearchNoteType = 2
 	// SearchNoteTypeVideo 视频类型
-	SearchNoteTypeVideo SearchNoteType = "video"
+	SearchNoteTypeVideo SearchNoteType = 1
 )
-
-// getSearchID 生成搜索ID
-func getSearchID() string {
-	return tools.GetRandomString(16)
-}
 
 // GetNoteByKeyword 根据关键词搜索帖子
 func (c *RednoteClient) GetNoteByKeyword(keyword string, searchID string, page, pageSize int, sort SearchSortType, noteType SearchNoteType) (map[string]interface{}, error) {
@@ -113,7 +132,7 @@ func (c *RednoteClient) GetNoteByKeyword(keyword string, searchID string, page, 
 
 	// Use default searchID if not provided
 	if searchID == "" {
-		searchID = getSearchID()
+		searchID = tools.GetSearchID()
 	}
 
 	// Use default values if not provided
@@ -126,9 +145,6 @@ func (c *RednoteClient) GetNoteByKeyword(keyword string, searchID string, page, 
 	if sort == "" {
 		sort = SearchSortTypeGeneral
 	}
-	if noteType == "" {
-		noteType = SearchNoteTypeAll
-	}
 
 	// Construct request data
 	uri := "/api/sns/web/v1/search/notes"
@@ -138,9 +154,10 @@ func (c *RednoteClient) GetNoteByKeyword(keyword string, searchID string, page, 
 		"page_size": pageSize,
 		"search_id": searchID,
 		"sort":      string(sort),
-		"note_type": string(noteType),
+		"note_type": int(noteType),
 	}
 
+	c.logger.Info("[RednoteClient.GetNoteByKeyword] Request data: %v", data)
 	// Send POST request using Post method
 	result, err := c.Post(uri, data, nil)
 	if err != nil {
@@ -206,7 +223,7 @@ func (c *RednoteClient) GetNoteComments(noteID, xsecToken, cursor string) (map[s
 	c.logger.Info("[RednoteClient.GetNoteComments] Getting comments for note: %s, cursor: %s", noteID, cursor)
 
 	// Prepare request params
-	params := map[string]string{
+	params := map[string]interface{}{
 		"note_id":        noteID,
 		"cursor":         cursor,
 		"top_comment_id": "",
@@ -239,7 +256,7 @@ func (c *RednoteClient) GetNoteSubComments(noteID, rootCommentID, xsecToken, cur
 	}
 
 	// Prepare request params
-	params := map[string]string{
+	params := map[string]interface{}{
 		"note_id":         noteID,
 		"root_comment_id": rootCommentID,
 		"cursor":          cursor,
@@ -275,38 +292,6 @@ func (c *RednoteClient) GetNoteByIDFromHTML(noteID, xsecSource, xsecToken string
 		LikeCount:    100,
 		CommentCount: 10,
 	}, nil
-}
-
-// GetAllNotesByCreator 获取创作者的所有帖子
-func (c *RednoteClient) GetAllNotesByCreator(userID string, crawlInterval int, callback func([]*model.Note) error, xsecToken, xsecSource string) ([]*model.Note, error) {
-	c.logger.Info("[RednoteClient.GetAllNotesByCreator] Getting all notes for creator: %s", userID)
-
-	notes := []*model.Note{
-		{
-			NoteID:       "test_note_1",
-			Title:        "Test Note 1",
-			AuthorID:     userID,
-			AuthorName:   "Test Author",
-			LikeCount:    100,
-			CommentCount: 10,
-		},
-		{
-			NoteID:       "test_note_2",
-			Title:        "Test Note 2",
-			AuthorID:     userID,
-			AuthorName:   "Test Author",
-			LikeCount:    200,
-			CommentCount: 20,
-		},
-	}
-
-	if callback != nil {
-		if err := callback(notes); err != nil {
-			return nil, err
-		}
-	}
-
-	return notes, nil
 }
 
 // GetNoteAllComments 获取帖子的所有评论
@@ -453,7 +438,7 @@ func (a *playwrightPageAdapter) Evaluate(expression string, options ...interface
 }
 
 // PreHeaders 生成带签名的请求头
-func (c *RednoteClient) PreHeaders(url string, params map[string]string, payload map[string]interface{}) map[string]string {
+func (c *RednoteClient) PreHeaders(url string, params map[string]interface{}, payload map[string]interface{}) map[string]string {
 	c.logger.Info("[RednoteClient.PreHeaders] Generating signed headers for URL: %s", url)
 
 	// Parse cookies to get a1 value
@@ -465,21 +450,22 @@ func (c *RednoteClient) PreHeaders(url string, params map[string]string, payload
 		}
 	}
 
-	// Create adapter and playwright client to generate headers
-	adapter := &playwrightPageAdapter{page: c.page}
-	playwrightClient := tools.NewPlaywrightClient(adapter)
-	headers := playwrightClient.PreHeadersWithPlaywright(url, cookieDict, params, payload)
-
-	// Update HTTP client headers
-	for k, v := range headers {
-		c.httpClient.Config().Headers[k] = v
+	headers, err := tools.PreHeadersWithPlaywright(
+		c.page,
+		url,
+		cookieDict,
+		params,
+		payload,
+	)
+	if err != nil {
+		c.logger.Error("[RednoteClient.PreHeaders] Failed to generate signed headers: %v", err)
+		return nil
 	}
-
 	return headers
 }
 
 // Request 发送HTTP请求并处理响应
-func (c *RednoteClient) Request(method, url string, returnResponse bool, headers map[string]string, params map[string]string, payload interface{}) (interface{}, error) {
+func (c *RednoteClient) Request(method, url string, returnResponse bool, headers map[string]string, params map[string]interface{}, payload interface{}) (interface{}, error) {
 	c.logger.Info("[RednoteClient.Request] Sending %s request to URL: %s", method, url)
 
 	// Prepare request body if payload exists
@@ -493,7 +479,7 @@ func (c *RednoteClient) Request(method, url string, returnResponse bool, headers
 		if headers == nil {
 			headers = make(map[string]string)
 		}
-		headers["Content-Type"] = "application/json"
+		headers["content-type"] = "application/json"
 	}
 
 	// Send request using existing HTTP client
@@ -549,7 +535,7 @@ func (c *RednoteClient) Request(method, url string, returnResponse bool, headers
 }
 
 // Get 发送带签名的GET请求
-func (c *RednoteClient) Get(uri string, params map[string]string) (interface{}, error) {
+func (c *RednoteClient) Get(uri string, params map[string]interface{}) (interface{}, error) {
 	c.logger.Info("[RednoteClient.Get] Sending GET request to URI: %s", uri)
 
 	// Get signed headers using PreHeaders method
@@ -564,7 +550,7 @@ func (c *RednoteClient) Get(uri string, params map[string]string) (interface{}, 
 }
 
 // Post 发送带签名的POST请求
-func (c *RednoteClient) Post(uri string, payload map[string]interface{}, params map[string]string) (interface{}, error) {
+func (c *RednoteClient) Post(uri string, payload map[string]interface{}, params map[string]interface{}) (interface{}, error) {
 	c.logger.Info("[RednoteClient.Post] Sending POST request to URI: %s", uri)
 
 	// Get signed headers using PreHeaders method

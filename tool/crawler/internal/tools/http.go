@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"time"
@@ -101,9 +102,6 @@ func (c *HTTPClient) doRequest(method, url string, body io.Reader, headers map[s
 		return nil, err
 	}
 
-	// 设置默认User-Agent
-	req.Header.Set("User-Agent", c.config.UserAgent)
-
 	// 设置配置的headers
 	for k, v := range c.config.Headers {
 		req.Header.Set(k, v)
@@ -149,5 +147,5 @@ type HTTPError struct {
 }
 
 func (e *HTTPError) Error() string {
-	return `http request failed: url="` + e.URL + `", status_code=` + string(rune(e.StatusCode)) + `, body="` + e.Body + `"`
+	return fmt.Sprintf(`http request failed: url="%s", status_code=%d, body="%s"`, e.URL, e.StatusCode, e.Body)
 }

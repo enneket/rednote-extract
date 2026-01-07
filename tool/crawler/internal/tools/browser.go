@@ -29,12 +29,6 @@ type BrowserResources struct {
 	Page       playwright.Page
 }
 
-// Logger 日志接口
-type Logger interface {
-	Info(format string, args ...interface{})
-	Error(format string, args ...interface{})
-}
-
 // NewBrowserManager 创建浏览器管理器
 func NewBrowserManager(cfg *config.Config, logger Logger) *BrowserManager {
 	return &BrowserManager{
@@ -93,6 +87,11 @@ func (bm *BrowserManager) launchStandard() (playwright.Browser, error) {
 
 	browser, err := pw.Chromium.Launch(playwright.BrowserTypeLaunchOptions{
 		Headless: playwright.Bool(bm.config.Headless),
+		Args: []string{
+			"--disable-web-security",            // 禁用跨域安全检查（解决跨域访问localStorage）
+			"--disable-features=PrivacySandbox", // 禁用隐私沙盒，允许访问存储
+			"--allow-running-insecure-content",  // 放宽内容安全限制
+		},
 	})
 	if err != nil {
 		pw.Stop()
@@ -100,7 +99,16 @@ func (bm *BrowserManager) launchStandard() (playwright.Browser, error) {
 	}
 	bm.browser = browser
 
-	bm.logger.Info("[BrowserManager] Browser launched successfully")
+	// 创建浏览器上下文
+	context, err := bm.CreateContext()
+	if err != nil {
+		browser.Close()
+		pw.Stop()
+		return nil, fmt.Errorf("failed to create context: %w", err)
+	}
+	bm.context = context
+
+	bm.logger.Info("[BrowserManager] Browser launched successfully with context")
 	return browser, nil
 }
 
@@ -110,7 +118,11 @@ func (bm *BrowserManager) CreateContext() (playwright.BrowserContext, error) {
 		return nil, fmt.Errorf("browser not initialized")
 	}
 
-	ctx, err := bm.browser.NewContext()
+	ctx, err := bm.browser.NewContext(playwright.BrowserNewContextOptions{
+		Permissions: []string{"storage-access"}, // 授予存储权限
+		// 禁用Cookie阻止（关键：允许localStorage写入/读取）
+		AcceptDownloads: playwright.Bool(true),
+	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create context: %w", err)
 	}

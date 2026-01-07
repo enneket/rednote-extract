@@ -62,3 +62,5 @@ coverage.txt
 # Misc
 *.orig
 *.bak
+
+data/
