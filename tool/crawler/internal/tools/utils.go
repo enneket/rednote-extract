@@ -46,7 +46,7 @@ func Base36EncodeBigInt(num *big.Int) string {
 		return "0"
 	}
 
-	const chars = "0123456789abcdefghijklmnopqrstuvwxyz"
+	const chars = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 	var result []byte
 	base := big.NewInt(36)
 

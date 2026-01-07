@@ -20,8 +20,13 @@ func buildSignString(uri string, data interface{}, method string) string {
 		if data != nil {
 			switch v := data.(type) {
 			case map[string]interface{}:
-				jsonBytes, _ := json.Marshal(v)
-				c += string(jsonBytes)
+				// 使用与Python json.dumps一致的序列化选项: separators=(",", ":"), ensure_ascii=False
+				jsonBytes, err := json.Marshal(v)
+				if err == nil {
+					// 移除所有空格以匹配separators=(",", ":")
+					jsonStr := strings.ReplaceAll(string(jsonBytes), " ", "")
+					c += jsonStr
+				}
 			case string:
 				c += v
 			}
