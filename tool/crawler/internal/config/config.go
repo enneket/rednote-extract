@@ -36,6 +36,8 @@ type Config struct {
 	SortType string `mapstructure:"SORT_TYPE"`
 	// OutputDir 输出目录路径
 	OutputDir string `mapstructure:"OUTPUT_DIR"`
+	// UserAgent 自定义User-Agent字符串
+	UserAgent string `mapstructure:"USER_AGENT"`
 }
 
 // DefaultConfig 返回默认配置
@@ -48,7 +50,7 @@ func DefaultConfig() *Config {
 		BrowserLaunchTimeout:               60,
 		AutoCloseBrowser:                   true,
 		SaveDataOption:                     "json",
-		UserDataDir:                        "/%s_user_data_dir",
+		UserDataDir:                        "%s_user_data_dir",
 		StartPage:                          1,
 		CrawlerMaxNotesCount:               50,
 		MaxConcurrencyNum:                  1,
@@ -58,5 +60,6 @@ func DefaultConfig() *Config {
 		CrawlerMaxSleepSec:                 2,
 		SortType:                           "",
 		OutputDir:                          "./data",
+		UserAgent:                          "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36",
 	}
 }

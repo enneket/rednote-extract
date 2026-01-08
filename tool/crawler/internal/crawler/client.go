@@ -44,8 +44,7 @@ type RednoteClient struct {
 func NewRednoteClient(cfg *config.Config, page playwright.Page, cookies string, logger tools.Logger) *RednoteClient {
 	httpConfig := tools.HTTPConfig{
 		Timeout:   30 * time.Second,
-		UserAgent: tools.GetRandomUserAgent(),
-
+		UserAgent: cfg.UserAgent,
 		Headers: map[string]string{
 			"accept":             "application/json, text/plain, */*",
 			"accept-language":    "zh-CN,zh;q=0.9",
@@ -61,7 +60,6 @@ func NewRednoteClient(cfg *config.Config, page playwright.Page, cookies string, 
 			"sec-fetch-dest":     "empty",
 			"sec-fetch-mode":     "cors",
 			"sec-fetch-site":     "same-site",
-			"user-agent":         "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36",
 			"Cookie":             cookies,
 		},
 	}

@@ -128,6 +128,7 @@ func (bm *BrowserManager) CreateContext() (playwright.BrowserContext, error) {
 		Permissions: []string{"storage-access"}, // 授予存储权限
 		// 禁用Cookie阻止（关键：允许localStorage写入/读取）
 		AcceptDownloads: playwright.Bool(true),
+		UserAgent:       playwright.String(bm.config.UserAgent),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create context: %w", err)
