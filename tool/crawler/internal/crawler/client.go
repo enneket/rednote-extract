@@ -545,7 +545,7 @@ func (c *RednoteClient) Get(uri string, params *tools.OrderedMap) (interface{}, 
 	headers := c.PreHeaders(uri, params, nil)
 
 	// Construct full URL (using origin from headers as host)
-	const host = "https://www.xiaohongshu.com"
+	const host = "https://edith.xiaohongshu.com"
 	fullURL := host + uri
 
 	// Send GET request using Request method
@@ -560,7 +560,7 @@ func (c *RednoteClient) Post(uri string, payload *tools.OrderedMap, params *tool
 	headers := c.PreHeaders(uri, params, payload)
 
 	// Construct full URL (using origin from headers as host)
-	const host = "https://www.xiaohongshu.com"
+	const host = "https://edith.xiaohongshu.com"
 	fullURL := host + uri
 
 	// 将 OrderedMap 转换为 map[string]interface{} 以传递给 Request
