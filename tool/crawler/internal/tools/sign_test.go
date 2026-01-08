@@ -1,6 +1,9 @@
 package tools
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestMrc(t *testing.T) {
 	// 定义测试用例
@@ -335,7 +338,6 @@ func TestEncodeUtf8(t *testing.T) {
 		})
 	}
 }
-
 func TestCustomQuote(t *testing.T) {
 	// 定义测试用例
 	tests := []struct {
@@ -459,4 +461,60 @@ func TestB64Encode(t *testing.T) {
 			t.Errorf("B64Encode large input length = %d, want %d", len(result), expectedLength)
 		}
 	})
+}
+
+func TestGetTraceId(t *testing.T) {
+	// 定义测试用例
+	tests := []struct {
+		name string
+	}{
+		{
+			name: "基本功能测试",
+		},
+		{
+			name: "多次调用唯一性测试",
+		},
+	}
+
+	// 运行测试用例
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := GetTraceId()
+
+			// 验证返回值长度为16
+			if len(result) != 16 {
+				t.Errorf("GetTraceId() 长度 = %d, want %d", len(result), 16)
+			}
+
+			// 验证返回值只包含允许的字符 (abcdef0123456789)
+			allowedChars := "abcdef0123456789"
+			for _, char := range result {
+				if !strings.ContainsRune(allowedChars, char) {
+					t.Errorf("GetTraceId() 包含不允许的字符 %c", char)
+				}
+			}
+
+			// 对于"多次调用唯一性测试"，验证多次生成的ID不相同
+			if tt.name == "多次调用唯一性测试" {
+				ids := make(map[string]bool)
+				for i := 0; i < 100; i++ { // 生成100个ID来测试唯一性
+					id := GetTraceId()
+					if ids[id] {
+						t.Errorf("GetTraceId() 生成了重复的ID: %s", id)
+					}
+					ids[id] = true
+
+					// 同时验证每个ID的格式
+					if len(id) != 16 {
+						t.Errorf("GetTraceId() 长度 = %d, want %d", len(id), 16)
+					}
+					for _, char := range id {
+						if !strings.ContainsRune(allowedChars, char) {
+							t.Errorf("GetTraceId() 包含不允许的字符 %c", char)
+						}
+					}
+				}
+			}
+		})
+	}
 }

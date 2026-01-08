@@ -161,12 +161,13 @@ func B64Encode(data []int) string {
 	return strings.Join(chunks, "")
 }
 
+var globalRand = rand.New(rand.NewSource(time.Now().UnixNano()))
+
 func GetTraceId() string {
 	const chars = "abcdef0123456789"
-	source := rand.NewSource(time.Now().UnixNano())
 	result := make([]byte, 16)
 	for i := range result {
-		result[i] = chars[source.Int63()%16]
+		result[i] = chars[globalRand.Int63()%16]
 	}
 	return string(result)
 }

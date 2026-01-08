@@ -48,7 +48,7 @@ func DefaultConfig() *Config {
 		BrowserLaunchTimeout:               60,
 		AutoCloseBrowser:                   true,
 		SaveDataOption:                     "json",
-		UserDataDir:                        "%s_user_data_dir",
+		UserDataDir:                        "/%s_user_data_dir",
 		StartPage:                          1,
 		CrawlerMaxNotesCount:               50,
 		MaxConcurrencyNum:                  1,

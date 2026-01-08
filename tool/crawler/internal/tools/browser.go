@@ -83,6 +83,7 @@ func (bm *BrowserManager) launchStandard() (playwright.Browser, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to start playwright: %w", err)
 	}
+
 	bm.playwright = pw
 
 	browser, err := pw.Chromium.Launch(playwright.BrowserTypeLaunchOptions{
@@ -118,7 +119,12 @@ func (bm *BrowserManager) CreateContext() (playwright.BrowserContext, error) {
 		return nil, fmt.Errorf("browser not initialized")
 	}
 
-	ctx, err := bm.browser.NewContext(playwright.BrowserNewContextOptions{
+	userDataDir, err := bm.SaveUserDataDir()
+	if err != nil {
+		return nil, fmt.Errorf("failed to save user data dir: %w", err)
+	}
+
+	ctx, err := bm.playwright.Chromium.LaunchPersistentContext(userDataDir, playwright.BrowserTypeLaunchPersistentContextOptions{
 		Permissions: []string{"storage-access"}, // 授予存储权限
 		// 禁用Cookie阻止（关键：允许localStorage写入/读取）
 		AcceptDownloads: playwright.Bool(true),
@@ -227,7 +233,11 @@ func (bm *BrowserManager) SaveUserDataDir() (string, error) {
 	if err := os.MkdirAll(userDataDir, 0755); err != nil {
 		return "", fmt.Errorf("failed to create user data directory: %w", err)
 	}
-	return userDataDir, nil
+	absUserDataDir, err := filepath.Abs(userDataDir)
+	if err != nil {
+		return "", fmt.Errorf("failed to get absolute path for user data directory: %w", err)
+	}
+	return absUserDataDir, nil
 }
 
 // Navigate 导航到指定URL
