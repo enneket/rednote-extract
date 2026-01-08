@@ -148,16 +148,15 @@ func (c *RednoteClient) GetNoteByKeyword(keyword string, searchID string, page, 
 
 	// Construct request data
 	uri := "/api/sns/web/v1/search/notes"
-	data := map[string]interface{}{
-		"keyword":   keyword,
-		"page":      page,
-		"page_size": pageSize,
-		"search_id": searchID,
-		"sort":      string(sort),
-		"note_type": int(noteType),
-	}
+	data := tools.NewOrderedMap()
+	data.Set("keyword", keyword)
+	data.Set("page", page)
+	data.Set("page_size", pageSize)
+	data.Set("search_id", searchID)
+	data.Set("sort", string(sort))
+	data.Set("note_type", int(noteType))
 
-	c.logger.Info("[RednoteClient.GetNoteByKeyword] Request data: %v", data)
+	c.logger.Info("[RednoteClient.GetNoteByKeyword] Request data: keyword=%s, page=%d", keyword, page)
 	// Send POST request using Post method
 	result, err := c.Post(uri, data, nil)
 	if err != nil {
@@ -182,13 +181,12 @@ func (c *RednoteClient) GetNoteByID(noteID, xsecSource, xsecToken string) (*mode
 	}
 
 	// Prepare request data
-	data := map[string]interface{}{
-		"source_note_id": noteID,
-		"image_formats":  []string{"jpg", "webp", "avif"},
-		"extra":          map[string]interface{}{"need_body_topic": 1},
-		"xsec_source":    xsecSource,
-		"xsec_token":     xsecToken,
-	}
+	data := tools.NewOrderedMap()
+	data.Set("source_note_id", noteID)
+	data.Set("image_formats", []string{"jpg", "webp", "avif"})
+	data.Set("extra", map[string]interface{}{"need_body_topic": 1})
+	data.Set("xsec_source", xsecSource)
+	data.Set("xsec_token", xsecToken)
 
 	// Send POST request
 	uri := "/api/sns/web/v1/feed"
@@ -223,13 +221,12 @@ func (c *RednoteClient) GetNoteComments(noteID, xsecToken, cursor string) (map[s
 	c.logger.Info("[RednoteClient.GetNoteComments] Getting comments for note: %s, cursor: %s", noteID, cursor)
 
 	// Prepare request params
-	params := map[string]interface{}{
-		"note_id":        noteID,
-		"cursor":         cursor,
-		"top_comment_id": "",
-		"image_formats":  "jpg,webp,avif",
-		"xsec_token":     xsecToken,
-	}
+	params := tools.NewOrderedMap()
+	params.Set("note_id", noteID)
+	params.Set("cursor", cursor)
+	params.Set("top_comment_id", "")
+	params.Set("image_formats", "jpg,webp,avif")
+	params.Set("xsec_token", xsecToken)
 
 	// Send GET request
 	uri := "/api/sns/web/v2/comment/page"
@@ -256,15 +253,14 @@ func (c *RednoteClient) GetNoteSubComments(noteID, rootCommentID, xsecToken, cur
 	}
 
 	// Prepare request params
-	params := map[string]interface{}{
-		"note_id":         noteID,
-		"root_comment_id": rootCommentID,
-		"cursor":          cursor,
-		"num":             fmt.Sprintf("%d", num),
-		"image_formats":   "jpg,webp,avif",
-		"top_comment_id":  "",
-		"xsec_token":      xsecToken,
-	}
+	params := tools.NewOrderedMap()
+	params.Set("note_id", noteID)
+	params.Set("root_comment_id", rootCommentID)
+	params.Set("cursor", cursor)
+	params.Set("num", fmt.Sprintf("%d", num))
+	params.Set("image_formats", "jpg,webp,avif")
+	params.Set("top_comment_id", "")
+	params.Set("xsec_token", xsecToken)
 
 	// Send GET request
 	uri := "/api/sns/web/v2/comment/sub/page"
@@ -438,7 +434,7 @@ func (a *playwrightPageAdapter) Evaluate(expression string, options ...interface
 }
 
 // PreHeaders 生成带签名的请求头
-func (c *RednoteClient) PreHeaders(url string, params map[string]interface{}, payload map[string]interface{}) map[string]string {
+func (c *RednoteClient) PreHeaders(url string, params *tools.OrderedMap, payload *tools.OrderedMap) map[string]string {
 	c.logger.Info("[RednoteClient.PreHeaders] Generating signed headers for URL: %s", url)
 
 	// Parse cookies to get a1 value
@@ -465,7 +461,7 @@ func (c *RednoteClient) PreHeaders(url string, params map[string]interface{}, pa
 }
 
 // Request 发送HTTP请求并处理响应
-func (c *RednoteClient) Request(method, url string, returnResponse bool, headers map[string]string, params map[string]interface{}, payload interface{}) (interface{}, error) {
+func (c *RednoteClient) Request(method, url string, returnResponse bool, headers map[string]string, payload interface{}) (interface{}, error) {
 	c.logger.Info("[RednoteClient.Request] Sending %s request to URL: %s", method, url)
 
 	// Prepare request body if payload exists
@@ -488,8 +484,15 @@ func (c *RednoteClient) Request(method, url string, returnResponse bool, headers
 		// Check if it's an HTTP error with specific status codes
 		if httpErr, ok := err.(*tools.HTTPError); ok {
 			if httpErr.StatusCode == 471 || httpErr.StatusCode == 461 {
-				// Handle CAPTCHA error
-				return nil, fmt.Errorf("CAPTCHA appeared, request failed, status_code: %d, body: %s", httpErr.StatusCode, httpErr.Body)
+				// Handle CAPTCHA error - extract verify headers if available
+				verifyType := "unknown"
+				verifyUUID := "unknown"
+				// Note: Go's http client doesn't preserve headers in error,
+				// would need to enhance HTTPError to include headers
+				msg := fmt.Sprintf("CAPTCHA appeared, request failed, Verifytype: %s, Verifyuuid: %s, status_code: %d, body: %s",
+					verifyType, verifyUUID, httpErr.StatusCode, httpErr.Body)
+				c.logger.Error(msg)
+				return nil, fmt.Errorf(msg)
 			}
 		}
 		return nil, err
@@ -516,7 +519,7 @@ func (c *RednoteClient) Request(method, url string, returnResponse bool, headers
 		}
 		return data, nil
 	} else if code, ok := data["code"].(float64); ok {
-		// Check for IP error code (assuming 50011 is the IP error code, will need adjustment based on actual code)
+		// Check for IP error code
 		const IP_ERROR_CODE = 50011
 		if code == IP_ERROR_CODE {
 			return nil, fmt.Errorf("IP blocked")
@@ -535,7 +538,7 @@ func (c *RednoteClient) Request(method, url string, returnResponse bool, headers
 }
 
 // Get 发送带签名的GET请求
-func (c *RednoteClient) Get(uri string, params map[string]interface{}) (interface{}, error) {
+func (c *RednoteClient) Get(uri string, params *tools.OrderedMap) (interface{}, error) {
 	c.logger.Info("[RednoteClient.Get] Sending GET request to URI: %s", uri)
 
 	// Get signed headers using PreHeaders method
@@ -546,11 +549,11 @@ func (c *RednoteClient) Get(uri string, params map[string]interface{}) (interfac
 	fullURL := host + uri
 
 	// Send GET request using Request method
-	return c.Request("GET", fullURL, false, headers, params, nil)
+	return c.Request("GET", fullURL, false, headers, nil)
 }
 
 // Post 发送带签名的POST请求
-func (c *RednoteClient) Post(uri string, payload map[string]interface{}, params map[string]interface{}) (interface{}, error) {
+func (c *RednoteClient) Post(uri string, payload *tools.OrderedMap, params *tools.OrderedMap) (interface{}, error) {
 	c.logger.Info("[RednoteClient.Post] Sending POST request to URI: %s", uri)
 
 	// Get signed headers using PreHeaders method
@@ -560,8 +563,18 @@ func (c *RednoteClient) Post(uri string, payload map[string]interface{}, params 
 	const host = "https://www.xiaohongshu.com"
 	fullURL := host + uri
 
+	// 将 OrderedMap 转换为 map[string]interface{} 以传递给 Request
+	var payloadMap map[string]interface{}
+	if payload != nil {
+		payloadMap = make(map[string]interface{})
+		for _, key := range payload.Keys() {
+			value, _ := payload.Get(key)
+			payloadMap[key] = value
+		}
+	}
+
 	// Send POST request using Request method
-	return c.Request("POST", fullURL, false, headers, params, payload)
+	return c.Request("POST", fullURL, false, headers, payloadMap)
 }
 
 // Config 获取HTTP客户端配置

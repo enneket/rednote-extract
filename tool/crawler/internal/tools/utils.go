@@ -49,10 +49,12 @@ func Base36EncodeBigInt(num *big.Int) string {
 	const chars = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 	var result []byte
 	base := big.NewInt(36)
+	var sign string
 
 	// 使用绝对值进行计算
 	n := new(big.Int).Set(num)
 	if n.Sign() < 0 {
+		sign = "-"
 		n.Abs(n)
 	}
 
@@ -71,10 +73,10 @@ func Base36EncodeBigInt(num *big.Int) string {
 
 	// 如果结果为空，返回"0"
 	if len(result) == 0 {
-		return "0"
+		return sign + "0"
 	}
 
-	return string(result)
+	return sign + string(result)
 }
 
 // SleepRandom 随机休眠指定时间范围内的秒数

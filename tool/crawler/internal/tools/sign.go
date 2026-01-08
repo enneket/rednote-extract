@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-var base64Chars = []byte("ZmserbBoHQtNP+wOcza/LpngG8yJq42KWYj0DSfdikx3VT16IlUAFM97hECvuRX5")
+var base64Chars = []byte("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/")
 
 var crc32Table = []uint32{
 	0, 1996959894, 3993919788, 2567524794, 124634137, 1886057615, 3915621685,
@@ -97,6 +97,10 @@ func EncodeUtf8(s string) []int {
 			fmt.Sscanf(encoded[i+1:i+3], "%x", &val)
 			result = append(result, val)
 			i += 3
+		} else if encoded[i] == '+' {
+			// 将 '+' 转换为空格的字节值 32
+			result = append(result, 32)
+			i++
 		} else {
 			result = append(result, int(encoded[i]))
 			i++
@@ -106,19 +110,28 @@ func EncodeUtf8(s string) []int {
 }
 
 func customQuote(s string) string {
-	safe := "~()*!.'"
+	// Python urllib.parse.quote 的安全字符: ~!*'()
+	// 注意：测试用例中还包含了 '.' 作为安全字符
+	safeStr := "~()*!.'"
 	result := strings.Builder{}
-	for _, r := range s {
-		if r <= 127 && strings.ContainsRune(safe, r) {
-			result.WriteRune(r)
-		} else if r == ' ' {
+
+	for _, c := range s {
+		if c == ' ' {
+			// 空格替换为 '+'
 			result.WriteRune('+')
+		} else if (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || strings.ContainsRune(safeStr, c) {
+			// 安全字符，直接添加
+			result.WriteRune(c)
 		} else {
-			for _, b := range []byte(string(r)) {
+			// 不安全字符，进行百分比编码
+			// 处理多字节字符
+			charBytes := []byte(string(c))
+			for _, b := range charBytes {
 				result.WriteString(fmt.Sprintf("%%%02X", b))
 			}
 		}
 	}
+
 	return result.String()
 }
 

@@ -2,6 +2,7 @@ package tools
 
 import (
 	"crypto/md5"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -13,19 +14,87 @@ import (
 	"github.com/playwright-community/playwright-go"
 )
 
+// OrderedMap 保持键值对的插入顺序，用于模拟 Python 3.7+ 的字典行为
+type OrderedMap struct {
+	keys   []string
+	values map[string]interface{}
+}
+
+// NewOrderedMap 创建一个新的有序 Map
+func NewOrderedMap() *OrderedMap {
+	return &OrderedMap{
+		keys:   make([]string, 0),
+		values: make(map[string]interface{}),
+	}
+}
+
+// Set 设置键值对
+func (om *OrderedMap) Set(key string, value interface{}) {
+	if _, exists := om.values[key]; !exists {
+		om.keys = append(om.keys, key)
+	}
+	om.values[key] = value
+}
+
+// Get 获取键对应的值
+func (om *OrderedMap) Get(key string) (interface{}, bool) {
+	val, exists := om.values[key]
+	return val, exists
+}
+
+// Keys 返回所有键（按插入顺序）
+func (om *OrderedMap) Keys() []string {
+	return om.keys
+}
+
+// Len 返回键值对数量
+func (om *OrderedMap) Len() int {
+	return len(om.keys)
+}
+
+// MarshalJSON 实现 JSON 序列化，保持键的顺序
+func (om *OrderedMap) MarshalJSON() ([]byte, error) {
+	var buf strings.Builder
+	buf.WriteString("{")
+	for i, key := range om.keys {
+		if i > 0 {
+			buf.WriteString(",")
+		}
+		// 序列化键
+		keyBytes, err := json.Marshal(key)
+		if err != nil {
+			return nil, err
+		}
+		buf.Write(keyBytes)
+		buf.WriteString(":")
+		// 序列化值
+		valueBytes, err := json.Marshal(om.values[key])
+		if err != nil {
+			return nil, err
+		}
+		buf.Write(valueBytes)
+	}
+	buf.WriteString("}")
+	return []byte(buf.String()), nil
+}
+
 func buildSignString(uri string, data interface{}, method string) string {
 	if strings.ToUpper(method) == "POST" {
 		// POST request uses JSON format
 		c := uri
 		if data != nil {
 			switch v := data.(type) {
+			case *OrderedMap:
+				// 使用OrderedMap的MarshalJSON保持键的顺序
+				jsonBytes, err := json.Marshal(v)
+				if err == nil {
+					c += string(jsonBytes)
+				}
 			case map[string]interface{}:
 				// 使用与Python json.dumps一致的序列化选项: separators=(",", ":"), ensure_ascii=False
 				jsonBytes, err := json.Marshal(v)
 				if err == nil {
-					// 移除所有空格以匹配separators=(",", ":")
-					jsonStr := strings.ReplaceAll(string(jsonBytes), " ", "")
-					c += jsonStr
+					c += string(jsonBytes)
 				}
 			case string:
 				c += v
@@ -39,6 +108,33 @@ func buildSignString(uri string, data interface{}, method string) string {
 		}
 
 		switch v := data.(type) {
+		case *OrderedMap:
+			if v.Len() == 0 {
+				return uri
+			}
+			var params []string
+			for _, key := range v.Keys() {
+				value, _ := v.Get(key)
+				var valueStr string
+				switch val := value.(type) {
+				case []interface{}:
+					var strSlice []string
+					for _, item := range val {
+						strSlice = append(strSlice, fmt.Sprintf("%v", item))
+					}
+					valueStr = strings.Join(strSlice, ",")
+				case nil:
+					valueStr = ""
+				default:
+					valueStr = fmt.Sprintf("%v", val)
+				}
+				// URL encoding - Python的quote(value_str, safe='')
+				valueStr = url.QueryEscape(valueStr)
+				// url.QueryEscape将空格编码为+，我们需要将其替换为%20
+				valueStr = strings.ReplaceAll(valueStr, "+", "%20")
+				params = append(params, key+"="+valueStr)
+			}
+			return uri + "?" + strings.Join(params, "&")
 		case map[string]interface{}:
 			if len(v) == 0 {
 				return uri
@@ -60,6 +156,8 @@ func buildSignString(uri string, data interface{}, method string) string {
 				}
 				// URL encoding without safe characters
 				valueStr = url.QueryEscape(valueStr)
+				// url.QueryEscape将空格编码为+，我们需要将其替换为%20
+				valueStr = strings.ReplaceAll(valueStr, "+", "%20")
 				params = append(params, key+"="+valueStr)
 			}
 			return uri + "?" + strings.Join(params, "&")
@@ -80,15 +178,37 @@ func buildXSPayload(x3Value string, dataType string) string {
 	if dataType == "" {
 		dataType = "object"
 	}
-	s := map[string]interface{}{
-		"x0": "4.2.1",
-		"x1": "xhs-pc-web",
-		"x2": "Mac OS",
-		"x3": x3Value,
-		"x4": dataType,
+	// Create the payload struct
+	type payload struct {
+		X0 string `json:"x0"`
+		X1 string `json:"x1"`
+		X2 string `json:"x2"`
+		X3 string `json:"x3"`
+		X4 string `json:"x4"`
 	}
+	s := payload{
+		X0: "4.2.1",
+		X1: "xhs-pc-web",
+		X2: "Mac OS",
+		X3: x3Value,
+		X4: dataType,
+	}
+	// Marshal to JSON
 	jsonBytes, _ := json.Marshal(s)
-	return "XYS_" + B64Encode(EncodeUtf8(string(jsonBytes)))
+	jsonStr := string(jsonBytes)
+
+	// Escape non-ASCII characters to match Python's json.dumps default behavior
+	var builder strings.Builder
+	for _, r := range jsonStr {
+		if r < 128 {
+			builder.WriteRune(r)
+		} else {
+			builder.WriteString(fmt.Sprintf("\\u%04x", r))
+		}
+	}
+	escapedJSON := builder.String()
+
+	return "XYS_" + base64.StdEncoding.EncodeToString([]byte(escapedJSON))
 }
 
 func buildXSCommon(a1 string, b1 string, x_s string, x_t string) string {
@@ -191,7 +311,7 @@ func SignWithPlaywright(page playwright.Page, uri string, data interface{}, a1 s
 	}, nil
 }
 
-func PreHeadersWithPlaywright(page playwright.Page, urlStr string, cookieDict map[string]string, params map[string]interface{}, payload map[string]interface{}) (map[string]string, error) {
+func PreHeadersWithPlaywright(page playwright.Page, urlStr string, cookieDict map[string]string, params *OrderedMap, payload *OrderedMap) (map[string]string, error) {
 	a1Value := cookieDict["a1"]
 	parsedURL, err := url.Parse(urlStr)
 	if err != nil {

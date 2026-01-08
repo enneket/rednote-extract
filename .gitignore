@@ -64,3 +64,6 @@ coverage.txt
 *.bak
 
 data/
+
+
+.qoder/
