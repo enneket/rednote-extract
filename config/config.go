@@ -11,8 +11,8 @@ import (
 
 type Config struct {
 	LLMProvider   string  `json:"llm_provider"`
-	APIBaseURL    string  `json:"api_base_url"`
-	APIKey        string  `json:"api_key"`
+	LLMAPIBaseURL string  `json:"llm_api_base_url"`
+	LLMAPIKey     string  `json:"llm_api_key"`
 	ModelName     string  `json:"model_name"`
 	Temperature   float32 `json:"temperature"`
 	MaxIterations int     `json:"max_iterations"`
@@ -30,17 +30,17 @@ func Load() (*Config, error) {
 		log.Printf("Warning: Failed to load .env file: %v", err)
 	}
 
-	apiKey := os.Getenv("API_KEY")
-	log.Printf("DEBUG: API_KEY from env: %s", apiKey)
-	if apiKey == "" {
-		apiKey = "sk-placeholder-key"
+	llmAPIKey := os.Getenv("LLM_API_KEY")
+	log.Printf("DEBUG: LLM_API_KEY from env: %s", llmAPIKey)
+	if llmAPIKey == "" {
+		llmAPIKey = "sk-placeholder-key"
 		log.Printf("DEBUG: Using placeholder API key")
 	}
 
-	baseURL := os.Getenv("API_BASE_URL")
-	log.Printf("DEBUG: API_BASE_URL from env: %s", baseURL)
-	if baseURL == "" {
-		baseURL = "https://api.openai.com/v1"
+	llmBaseURL := os.Getenv("LLM_API_BASE_URL")
+	log.Printf("DEBUG: LLM_API_BASE_URL from env: %s", llmBaseURL)
+	if llmBaseURL == "" {
+		llmBaseURL = "https://api.openai.com/v1"
 	}
 
 	llmProvider := getEnv("LLM_PROVIDER", "openai")
@@ -56,8 +56,8 @@ func Load() (*Config, error) {
 	}
 	globalConfig = &Config{
 		LLMProvider:   llmProvider,
-		APIBaseURL:    baseURL,
-		APIKey:        apiKey,
+		LLMAPIBaseURL: llmBaseURL,
+		LLMAPIKey:     llmAPIKey,
 		ModelName:     modelName,
 		Temperature:   0.7,
 		MaxIterations: maxIterations,

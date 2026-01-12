@@ -24,15 +24,15 @@ func NewChatModel(cfg *config.Config) (ChatModel, error) {
 	switch cfg.LLMProvider {
 	case "openai":
 		model, err = einoOpenAI.NewChatModel(context.TODO(), &einoOpenAI.ChatModelConfig{
-			BaseURL:     cfg.APIBaseURL,
-			APIKey:      cfg.APIKey,
+			BaseURL:     cfg.LLMAPIBaseURL,
+			APIKey:      cfg.LLMAPIKey,
 			Model:       cfg.ModelName,
 			Temperature: &temperature,
 		})
 	case "qwen":
 		model, err = einoQwen.NewChatModel(context.TODO(), &einoQwen.ChatModelConfig{
-			BaseURL:     cfg.APIBaseURL,
-			APIKey:      cfg.APIKey,
+			BaseURL:     cfg.LLMAPIBaseURL,
+			APIKey:      cfg.LLMAPIKey,
 			Model:       cfg.ModelName,
 			Temperature: &temperature,
 		})
