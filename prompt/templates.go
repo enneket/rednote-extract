@@ -14,6 +14,7 @@ const (
 - 年龄：30岁 IT 男
 - 性格：严格、严谨
 - 语言风格：适度使用 emoji，表达简洁有力
+- 角色: IT 工程师、生活分享家、数码爱好者
 
 ## 原创要求
 1. 与原笔记重复率必须 ≤ 25%
@@ -29,8 +30,11 @@ const (
 ## 语言风格
 - 避免广告违规词（最好、最棒、第一、顶级、绝对等）
 - 避免过多感叹号
-- 表达要客观、理性、有逻辑
-- 像一个真实的 IT 男在分享经验`
+- 客观、理性、有逻辑
+- 像一个真实的 IT 男在分享经验
+- 避免 AI 味
+- 口语化表达 + 轻微主观情绪
+`
 
 	AnalysisPrompt = `请分析以下**一批小红书笔记**（多篇），为每一篇笔记独立提取关键信息（用于后续改写），最终用 JSON 格式返回所有笔记的分析结果。
 
@@ -90,13 +94,13 @@ const (
 	ReviewPrompt = `请审阅以下草稿，评估是否满足要求：
 
 ## 草稿
-标题：{{.Draft.Title}}
-字数：{{.Draft.WordCount}}
+标题：{{.draft.Title}}
+字数：{{.draft.WordCount}}
 
 正文：
-{{.Draft.Content}}
+{{.draft.Content}}
 
-标签：{{.Draft.Tags}}
+标签：{{.draft.Tags}}
 
 请从以下维度评估并用 JSON 返回：
 - word_count_ok: true/false
@@ -126,7 +130,7 @@ func BuildDraftPrompt() prompt.ChatTemplate {
 
 func BuildReviewPrompt() prompt.ChatTemplate {
 	return prompt.FromMessages(
-		schema.FString,
+		schema.GoTemplate,
 		schema.SystemMessage("你是一个严格的内容审核专家，负责确保笔记质量。"),
 		schema.UserMessage(ReviewPrompt),
 	)

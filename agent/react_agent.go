@@ -205,6 +205,10 @@ func (a *ReactAgent) reviewNode(ctx context.Context, state *models.AgentState) (
 		return nil, fmt.Errorf("failed to format review prompt: %w", err)
 	}
 
+	for _, msg := range messages {
+		log.Printf("[DEBUG] reviewNode: message: %s", msg.Content)
+	}
+
 	log.Printf("[DEBUG] reviewNode: 调用 model 进行审核")
 	response, err := a.model.Generate(ctx, messages)
 	if err != nil {
