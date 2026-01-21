@@ -23,6 +23,7 @@ type Config struct {
 	UserDataDir        string `mapstructure:"USER_DATA_DIR"`
 	EnableGetComments  bool   `mapstructure:"ENABLE_GET_COMMENTS"`
 	CrawlerMaxSleepSec int    `mapstructure:"CRAWLER_MAX_SLEEP_SEC"`
+	MaxNotes           int    `mapstructure:"MAX_NOTES"`
 
 	// Prompts
 	Persona string `mapstructure:"PERSONA"`
@@ -53,6 +54,7 @@ func Load() (*Config, error) {
 	viper.SetDefault("SAVE_DATA_OPTION", "json")
 	viper.SetDefault("ENABLE_GET_COMMENTS", true)
 	viper.SetDefault("CRAWLER_MAX_SLEEP_SEC", 2)
+	viper.SetDefault("MAX_NOTES", 10)
 
 	// Also allow env vars with prefix or raw
 	viper.AutomaticEnv()
