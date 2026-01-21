@@ -3,7 +3,7 @@ package utils
 import (
 	"testing"
 
-	"github.com/enneket/rednote-extract/models"
+	"github.com/enneket/rednote-extract/internal/models"
 )
 
 func TestParseJSONWithCleanup(t *testing.T) {

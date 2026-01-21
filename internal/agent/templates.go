@@ -1,23 +1,20 @@
-package prompt
+package agent
 
 import (
 	"fmt"
 
 	"github.com/cloudwego/eino/components/prompt"
 	"github.com/cloudwego/eino/schema"
+	"github.com/enneket/rednote-extract/internal/config"
 )
 
 const (
-	SystemPrompt = `你是一个专业的小红书内容创作者，擅长将原笔记改写成风格独特、吸引人的新笔记。
+	BaseSystemPrompt = `你是一个专业的小红书内容创作者，擅长将原笔记改写成风格独特、吸引人的新笔记。
 
-## 账号人格设定
-- 年龄：30岁 IT 男
-- 性格：严格、严谨
-- 语言风格：适度使用 emoji，表达简洁有力
-- 角色: IT 工程师、生活分享家、数码爱好者
+%s
 
 ## 原创要求
-1. 与原笔记重复率必须 ≤ 25%
+1. 与原笔记重复率必须 ≤ 25%%
 2. 绝对禁止复制原句
 3. 必须用自己独特的视角和表达方式重新诠释内容
 
@@ -76,7 +73,7 @@ const (
 {{end}}
 
 ## 改写核心要求
-1.  视角与风格：严格以「30岁IT男」视角创作，语言风格需贴合该群体特征——真实接地气、略带技术人理性感，可适当加入生活化口语（如“实测”“踩坑总结”“打工人亲测”等），避免过度柔美或浮夸表达；
+1.  视角与风格：严格以人设视角创作，语言风格需贴合该群体特征，避免过度柔美或浮夸表达；
 2.  内容要求：每篇改写笔记需完整覆盖对应分析结果的核心要点，同时精准匹配读者需求（如读者需“避坑”则重点补充实用避坑技巧，需“教程”则强化步骤清晰度），不得遗漏关键信息；
 3.  格式规范：每篇笔记标题必须带1-2个贴合主题的emoji，正文分3-4段（每段聚焦1个核心要点，逻辑连贯），结尾需搭配适配的话题标签;
 4.  权重判定不以文本字数多少为依据，优先依据字符出现的频率（字频）进行内容改写。
@@ -112,23 +109,34 @@ const (
 - pass: true/false`
 )
 
-func BuildAnalysisPrompt() prompt.ChatTemplate {
+func GetSystemPrompt(cfg *config.Config) string {
+	personaSection := ""
+	if cfg != nil && cfg.Persona != "" {
+		personaSection = fmt.Sprintf("## 账号人格设定\n%s", cfg.Persona)
+	}
+
+	return fmt.Sprintf(BaseSystemPrompt, personaSection)
+}
+
+func BuildAnalysisPrompt(cfg *config.Config) prompt.ChatTemplate {
+	sysPrompt := GetSystemPrompt(cfg)
 	return prompt.FromMessages(
 		schema.GoTemplate,
-		schema.SystemMessage(SystemPrompt),
+		schema.SystemMessage(sysPrompt),
 		schema.UserMessage(AnalysisPrompt),
 	)
 }
 
-func BuildDraftPrompt() prompt.ChatTemplate {
+func BuildDraftPrompt(cfg *config.Config) prompt.ChatTemplate {
+	sysPrompt := GetSystemPrompt(cfg)
 	return prompt.FromMessages(
 		schema.GoTemplate,
-		schema.SystemMessage(SystemPrompt),
+		schema.SystemMessage(sysPrompt),
 		schema.UserMessage(DraftPrompt),
 	)
 }
 
-func BuildReviewPrompt() prompt.ChatTemplate {
+func BuildReviewPrompt(cfg *config.Config) prompt.ChatTemplate {
 	return prompt.FromMessages(
 		schema.GoTemplate,
 		schema.SystemMessage("你是一个严格的内容审核专家，负责确保笔记质量。"),

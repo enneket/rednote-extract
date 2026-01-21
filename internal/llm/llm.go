@@ -1,4 +1,4 @@
-package chat_model
+package llm
 
 import (
 	"context"
@@ -8,7 +8,7 @@ import (
 	einoQwen "github.com/cloudwego/eino-ext/components/model/qwen"
 	"github.com/cloudwego/eino/components/model"
 	"github.com/cloudwego/eino/schema"
-	"github.com/enneket/rednote-extract/config"
+	"github.com/enneket/rednote-extract/internal/config"
 )
 
 type ChatModel interface {

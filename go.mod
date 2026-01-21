@@ -9,7 +9,6 @@ require (
 	github.com/cloudwego/eino-ext/components/model/openai v0.1.7
 	github.com/cloudwego/eino-ext/components/model/qwen v0.1.4
 	github.com/go-resty/resty/v2 v2.17.1
-	github.com/joho/godotenv v1.5.1
 	github.com/playwright-community/playwright-go v0.5200.1
 	github.com/spf13/viper v1.21.0
 )

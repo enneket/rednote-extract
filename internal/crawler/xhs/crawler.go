@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/enneket/rednote-extract/crawler/config"
-	"github.com/enneket/rednote-extract/crawler/store"
+	"github.com/enneket/rednote-extract/internal/config"
+	"github.com/enneket/rednote-extract/internal/store"
 
 	"github.com/playwright-community/playwright-go"
 )
@@ -168,7 +168,12 @@ func (c *XhsCrawler) initBrowser() error {
 	}
 	c.pw = pw
 
-	userDataDir, err := filepath.Abs(config.AppConfig.UserDataDir)
+	userDataDirConfig := config.AppConfig.UserDataDir
+	if userDataDirConfig == "" {
+		userDataDirConfig = "browser_data"
+	}
+
+	userDataDir, err := filepath.Abs(userDataDirConfig)
 	if err != nil {
 		return fmt.Errorf("could not resolve absolute path for user data dir: %v", err)
 	}

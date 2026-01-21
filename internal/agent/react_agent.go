@@ -8,20 +8,19 @@ import (
 	"time"
 
 	"github.com/cloudwego/eino/schema"
-	"github.com/enneket/rednote-extract/chat_model"
-	"github.com/enneket/rednote-extract/config"
-	"github.com/enneket/rednote-extract/models"
-	"github.com/enneket/rednote-extract/prompt"
-	"github.com/enneket/rednote-extract/utils"
+	"github.com/enneket/rednote-extract/internal/config"
+	"github.com/enneket/rednote-extract/internal/llm"
+	"github.com/enneket/rednote-extract/internal/models"
+	"github.com/enneket/rednote-extract/internal/utils"
 )
 
 type ReactAgent struct {
 	cfg   *config.Config
-	model chat_model.ChatModel
+	model llm.ChatModel
 }
 
 func NewReactAgent(cfg *config.Config) *ReactAgent {
-	chatModel, err := chat_model.NewChatModel(cfg)
+	chatModel, err := llm.NewChatModel(cfg)
 	if err != nil {
 		log.Fatalf("Failed to create chat model: %v", err)
 	}
@@ -101,8 +100,8 @@ func (a *ReactAgent) analyzeNode(ctx context.Context, state *models.AgentState) 
 	state.ThoughtProcess = append(state.ThoughtProcess, fmt.Sprintf("[%s] 开始分析原笔记...", time.Now().Format("15:04:05")))
 
 	log.Printf("[DEBUG] analyzeNode: 开始分析原笔记...")
-
-	promptTpl := prompt.BuildAnalysisPrompt()
+	
+	promptTpl := BuildAnalysisPrompt(a.cfg)
 	messages, err := promptTpl.Format(ctx, map[string]any{
 		"notes": state.Input,
 	})
@@ -148,7 +147,7 @@ func (a *ReactAgent) draftNode(ctx context.Context, state *models.AgentState) (*
 		return nil, fmt.Errorf("missing analysis result")
 	}
 
-	promptTpl := prompt.BuildDraftPrompt()
+	promptTpl := BuildDraftPrompt(a.cfg)
 	messages, err := promptTpl.Format(ctx, map[string]any{
 		"analysises": state.AnalyzedInput,
 	})
@@ -196,7 +195,7 @@ func (a *ReactAgent) reviewNode(ctx context.Context, state *models.AgentState) (
 	log.Printf("[DEBUG] reviewNode: 待审核草稿, title=%s, word_count=%d, tags=%v",
 		state.DraftNote.Title, state.DraftNote.WordCount, state.DraftNote.Tags)
 
-	promptTpl := prompt.BuildReviewPrompt()
+	promptTpl := BuildReviewPrompt(a.cfg)
 	messages, err := promptTpl.Format(ctx, map[string]any{
 		"draft": state.DraftNote,
 	})
@@ -267,8 +266,10 @@ func (a *ReactAgent) reviseNode(ctx context.Context, state *models.AgentState) (
 
 请生成改进后的笔记，确保解决所有问题。`, state.DraftNote.Title, state.DraftNote.WordCount, state.DraftNote.Content, state.DraftNote.Tags, state.DraftNote.ReviewResult.Issues, state.DraftNote.ReviewResult.Suggestions)
 
+	sysPrompt := GetSystemPrompt(a.cfg)
+
 	messages := []*schema.Message{
-		schema.SystemMessage(prompt.SystemPrompt),
+		schema.SystemMessage(sysPrompt),
 		schema.UserMessage(revisionPrompt),
 	}
 

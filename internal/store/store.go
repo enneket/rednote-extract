@@ -8,7 +8,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/enneket/rednote-extract/crawler/config"
+	"github.com/enneket/rednote-extract/internal/config"
 )
 
 type Store interface {

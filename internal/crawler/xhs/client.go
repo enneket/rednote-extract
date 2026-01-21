@@ -18,7 +18,7 @@ type Client struct {
 func NewClient(signer *Signer) *Client {
 	client := resty.New()
 	client.SetBaseURL("https://edith.xiaohongshu.com")
-	
+
 	// Default headers
 	client.SetHeaders(map[string]string{
 		"accept":          "application/json, text/plain, */*",
@@ -42,13 +42,13 @@ func (c *Client) UpdateCookies(ctx playwright.BrowserContext) error {
 	if err != nil {
 		return err
 	}
-	
+
 	var cookieStrs []string
 	for _, cookie := range cookies {
 		c.Cookies[cookie.Name] = cookie.Value
 		cookieStrs = append(cookieStrs, fmt.Sprintf("%s=%s", cookie.Name, cookie.Value))
 	}
-	
+
 	cookieHeader := strings.Join(cookieStrs, "; ")
 	c.HttpClient.SetHeader("Cookie", cookieHeader)
 	return nil
@@ -83,7 +83,7 @@ func (c *Client) Post(uri string, data interface{}, result interface{}) error {
 	if resp.IsError() {
 		return fmt.Errorf("status: %d, body: %s", resp.StatusCode(), resp.String())
 	}
-	
+
 	return nil
 }
 
@@ -108,10 +108,10 @@ func (c *Client) GetNoteByKeyword(keyword string, page int) (*SearchResult, erro
 
 	// Wrapper for response
 	type Response struct {
-		Success bool          `json:"success"`
-		Code    int           `json:"code"`
-		Msg     string        `json:"msg"`
-		Data    SearchResult  `json:"data"`
+		Success bool         `json:"success"`
+		Code    int          `json:"code"`
+		Msg     string       `json:"msg"`
+		Data    SearchResult `json:"data"`
 	}
 
 	var resp Response
@@ -119,7 +119,7 @@ func (c *Client) GetNoteByKeyword(keyword string, page int) (*SearchResult, erro
 	if err != nil {
 		return nil, err
 	}
-	
+
 	if !resp.Success {
 		return nil, fmt.Errorf("api error: %s", resp.Msg)
 	}
@@ -142,8 +142,8 @@ func (c *Client) GetNoteById(noteId, xsecSource, xsecToken string) (*Note, error
 	}
 
 	type Response struct {
-		Success bool `json:"success"`
-		Code    int  `json:"code"`
+		Success bool   `json:"success"`
+		Code    int    `json:"code"`
 		Msg     string `json:"msg"`
 		Data    struct {
 			Items []struct {
@@ -173,11 +173,11 @@ func (c *Client) GetNoteById(noteId, xsecSource, xsecToken string) (*Note, error
 func (c *Client) GetNoteComments(noteId, xsecToken, cursor string) (*CommentResult, error) {
 	uri := "/api/sns/web/v2/comment/page"
 	params := map[string]string{
-		"note_id":       noteId,
-		"cursor":        cursor,
+		"note_id":        noteId,
+		"cursor":         cursor,
 		"top_comment_id": "",
-		"image_formats": "jpg,webp,avif",
-		"xsec_token":    xsecToken,
+		"image_formats":  "jpg,webp,avif",
+		"xsec_token":     xsecToken,
 	}
 
 	// Sign for GET request
@@ -201,7 +201,7 @@ func (c *Client) GetNoteComments(noteId, xsecToken, cursor string) (*CommentResu
 		SetQueryParams(params).
 		SetResult(&resp).
 		Get(uri)
-	
+
 	if err != nil {
 		return nil, err
 	}
