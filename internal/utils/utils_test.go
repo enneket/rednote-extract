@@ -11,11 +11,12 @@ func TestParseJSONWithCleanup(t *testing.T) {
 	t.Run("Valid JSON", func(t *testing.T) {
 		jsonStr := `{
 			"main_topic": "测试主题",
-			"core_points": ["点1", "点2"],
-			"audience_needs": ["需求1", "需求2"],
-			"style": ["风格1", "风格2"],
+			"core_points": "点1;点2",
+			"audience_needs": "需求1;需求2",
+			"useful_info": "有用信息1;有用信息2",
+			"style": "风格1;风格2",
 			"sentiment": "正面",
-			"keywords": ["关键词1", "关键词2"]
+			"keywords": "关键词1;关键词2"
 		}`
 
 		var result models.AnalyzedInput
@@ -27,6 +28,9 @@ func TestParseJSONWithCleanup(t *testing.T) {
 		if result.MainTopic != "测试主题" {
 			t.Errorf("Expected MainTopic to be '测试主题', got '%s'", result.MainTopic)
 		}
+		if result.UsefulInfo != "有用信息1;有用信息2" {
+			t.Errorf("Expected UsefulInfo to be '有用信息1;有用信息2', got '%s'", result.UsefulInfo)
+		}
 	})
 
 	// 测试带markdown格式的JSON
@@ -34,11 +38,12 @@ func TestParseJSONWithCleanup(t *testing.T) {
 		jsonStr := "```" + `json
 {
 	"main_topic": "测试主题2",
-	"core_points": ["点A", "点B"],
-	"audience_needs": ["需求A", "需求B"],
-	"style": ["风格A", "风格B"],
+	"core_points": "点A;点B",
+	"audience_needs": "需求A;需求B",
+	"useful_info": "有用信息A;有用信息B",
+	"style": "风格A;风格B",
 	"sentiment": "正面",
-	"keywords": ["关键词A", "关键词B"]
+	"keywords": "关键词A;关键词B"
 }` + "```"
 
 		var result models.AnalyzedInput

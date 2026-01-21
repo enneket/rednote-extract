@@ -7,9 +7,31 @@ import (
 	"path/filepath"
 	"sync"
 	"time"
-
-	"github.com/enneket/rednote-extract/internal/config"
 )
+
+var (
+	globalDataDir string
+	mu            sync.RWMutex
+)
+
+// SetGlobalDataDir sets the global data directory for saving files.
+// This allows different runs to save data in different directories.
+func SetGlobalDataDir(dir string) {
+	mu.Lock()
+	defer mu.Unlock()
+	globalDataDir = dir
+}
+
+// GetGlobalDataDir returns the current global data directory.
+// Defaults to "data/xhs" if not set.
+func GetGlobalDataDir() string {
+	mu.RLock()
+	defer mu.RUnlock()
+	if globalDataDir != "" {
+		return globalDataDir
+	}
+	return filepath.Join("data", "xhs")
+}
 
 type Store interface {
 	Save(data interface{}, filename string) error
@@ -54,11 +76,9 @@ func NewCsvStore(dir string) *CsvStore {
 
 func GetStore() Store {
 	// Create data directory
-	dataDir := "data"
-	if config.AppConfig.SaveDataOption == "json" {
-		return NewJsonStore(filepath.Join(dataDir, "xhs"))
-	}
-	return NewJsonStore(filepath.Join(dataDir, "xhs"))
+	// Use global data dir if set
+	dir := GetGlobalDataDir()
+	return NewJsonStore(dir)
 }
 
 func SaveNote(note interface{}) error {

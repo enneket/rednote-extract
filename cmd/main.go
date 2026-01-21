@@ -6,11 +6,14 @@ import (
 	"fmt"
 	"log"
 	"path/filepath"
+	"strings"
+	"time"
 
 	"github.com/enneket/rednote-extract/internal/agent"
 	"github.com/enneket/rednote-extract/internal/config"
 	"github.com/enneket/rednote-extract/internal/crawler/xhs"
 	"github.com/enneket/rednote-extract/internal/storage"
+	"github.com/enneket/rednote-extract/internal/store"
 )
 
 func main() {
@@ -26,6 +29,23 @@ func main() {
 		cfg.Keywords = *keywords
 	}
 
+	// Set up run-specific data directory
+	timestamp := time.Now().Format("20060102_150405")
+	runDir := filepath.Join("data", "xhs", timestamp)
+	if cfg.Keywords != "" {
+		safeKeywords := strings.ReplaceAll(cfg.Keywords, ",", "_")
+		safeKeywords = strings.ReplaceAll(safeKeywords, " ", "_")
+		// Limit length of keywords in filename to avoid filesystem issues
+		if len(safeKeywords) > 50 {
+			safeKeywords = safeKeywords[:50]
+		}
+		runDir = filepath.Join("data", "xhs", fmt.Sprintf("%s_%s", timestamp, safeKeywords))
+	}
+
+	// Configure store to use this directory
+	store.SetGlobalDataDir(runDir)
+	log.Printf("本次运行数据将保存在: %s", runDir)
+
 	ctx := context.Background()
 
 	// 1. Start Crawler
@@ -39,8 +59,8 @@ func main() {
 	}
 
 	// 2. Read Data
-	// Data is saved in data/xhs by the crawler
-	dataDir := filepath.Join("data", "xhs")
+	// Data is saved in runDir by the crawler
+	dataDir := runDir
 	log.Printf("从 %s 读取数据...", dataDir)
 
 	// Read all JSON files from the data folder

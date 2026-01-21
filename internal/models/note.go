@@ -26,6 +26,7 @@ type AnalyzedInput struct {
 	MainTopic     string `json:"main_topic"`
 	CorePoints    string `json:"core_points"`
 	AudienceNeeds string `json:"audience_needs"`
+	UsefulInfo    string `json:"useful_info"`
 	Style         string `json:"style"`
 	Sentiment     string `json:"sentiment"`
 	Keywords      string `json:"keywords"`
