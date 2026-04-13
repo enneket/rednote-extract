@@ -1,1 +1,14 @@
 .claude/
+
+# Apps build artifacts
+apps/client/node_modules/
+apps/client/dist/
+apps/client/src-tauri/target/
+apps/client/src-tauri/icons/*.png
+apps/client/src-tauri/icons/*.ico
+apps/client/src-tauri/icons/*.icns
+
+# Python
+__pycache__/
+*.pyc
+*.egg-info/
