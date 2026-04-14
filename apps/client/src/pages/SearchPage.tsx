@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { searchNotes } from "../api/client";
+import { searchNotes, exportNotes, NoteData } from "../api/client";
 
 export default function SearchPage() {
   const [keyword, setKeyword] = useState("");
@@ -8,7 +8,9 @@ export default function SearchPage() {
   const [noteType, setNoteType] = useState(0);
   const [noteTime, setNoteTime] = useState(0);
   const [loading, setLoading] = useState(false);
-  const [notes, setNotes] = useState<string[]>([]);
+  const [notes, setNotes] = useState<NoteData[]>([]);
+  const [partial, setPartial] = useState(false);
+  const [errors, setErrors] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   const sortOptions = [
@@ -40,6 +42,7 @@ export default function SearchPage() {
     setLoading(true);
     setError(null);
     setNotes([]);
+    setErrors([]);
     try {
       const data = await searchNotes({
         keyword,
@@ -48,11 +51,21 @@ export default function SearchPage() {
         note_type: noteType,
         note_time: noteTime,
       });
-      setNotes(data.notes || []);
+      setNotes(data.notes);
+      setPartial(data.partial);
+      setErrors(data.errors);
     } catch (e: any) {
       setError(e.message);
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handleExport() {
+    try {
+      await exportNotes(notes, `${keyword}_notes.xlsx`);
+    } catch (e: any) {
+      setError(e.message);
     }
   }
 
@@ -114,20 +127,35 @@ export default function SearchPage() {
         <button className="btn btn-primary" onClick={handleSearch} disabled={loading}>
           {loading ? "搜索中..." : "搜索并采集"}
         </button>
+        {notes.length > 0 && (
+          <button className="btn btn-secondary" onClick={handleExport}>
+            导出Excel
+          </button>
+        )}
       </div>
 
       {error && <div className="error" style={{ marginTop: 12 }}>{error}</div>}
 
       {notes.length > 0 && (
         <div className="result-box">
-          <div className="title">采集到 {notes.length} 条笔记</div>
+          <div className="title">
+            采集到 {notes.length} 条笔记
+            {partial && <span style={{ color: "#e53935", fontSize: 13 }}>（部分失败）</span>}
+          </div>
           <div className="note-list">
-            {notes.map((noteUrl, i) => (
+            {notes.map((note, i) => (
               <div key={i} className="note-item">
-                <span className="url">{noteUrl}</span>
+                <p><strong>{note.title || "(无标题)"}</strong> - {note.author}</p>
+                <p>点赞:{note.liked} 收藏:{note.collected} 评论:{note.commented}</p>
+                <a href={note.url} target="_blank" rel="noopener noreferrer" className="url">{note.url}</a>
               </div>
             ))}
           </div>
+          {errors.length > 0 && (
+            <div style={{ marginTop: 12, fontSize: 12, color: "#e53935" }}>
+              失败: {errors.length} 条
+            </div>
+          )}
         </div>
       )}
     </div>

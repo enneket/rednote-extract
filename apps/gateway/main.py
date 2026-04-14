@@ -3,13 +3,13 @@ XHS HTTP Gateway - FastAPI service wrapping Spider_XHS
 """
 import logging
 from contextlib import asynccontextmanager
-from pathlib import Path
 
 from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import cookies, health, notes
+from app.api import cookies, health, notes, export
+from app.core import config
 
 # Load .env
 load_dotenv()
@@ -17,14 +17,20 @@ load_dotenv()
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Spider_XHS path
-SPIDER_XHS_PATH = Path(__file__).parent.parent.parent.parent / "Spider_XHS"
-
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("XHS Gateway starting up...")
-    logger.info(f"Spider_XHS path: {SPIDER_XHS_PATH}")
+    # Ensure gateway home dir
+    config.ensure_gateway_home()
+    # Discover Spider_XHS (fail fast)
+    try:
+        spider_path = config.get_spider_xhs_path()
+        app.state.spider_xhs_path = spider_path
+        logger.info(f"Spider_XHS ready at: {spider_path}")
+    except config.StartupError as e:
+        logger.error(f"Startup failed: {e}")
+        raise
     yield
     logger.info("XHS Gateway shutting down...")
 
@@ -49,6 +55,7 @@ app.add_middleware(
 app.include_router(health.router, tags=["health"])
 app.include_router(cookies.router, prefix="/api/v1/cookies", tags=["cookies"])
 app.include_router(notes.router, prefix="/api/v1/notes", tags=["notes"])
+app.include_router(export.router, prefix="/api/v1/notes", tags=["notes"])
 
 
 if __name__ == "__main__":

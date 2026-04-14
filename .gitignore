@@ -12,3 +12,9 @@ apps/client/src-tauri/icons/*.icns
 __pycache__/
 *.pyc
 *.egg-info/
+
+# Embedded vendor (Spider_XHS)
+apps/gateway/vendor/Spider_XHS/
+
+# PyInstaller spec (build artifact)
+apps/gateway/*.spec
