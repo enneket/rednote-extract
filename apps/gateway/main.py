@@ -59,5 +59,7 @@ app.include_router(export.router, prefix="/api/v1/notes", tags=["notes"])
 
 
 if __name__ == "__main__":
+    import sys
     import uvicorn
-    uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=True)
+    is_frozen = getattr(sys, "frozen", False)
+    uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=not is_frozen)
